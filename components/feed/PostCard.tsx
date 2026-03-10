@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { Heart, MessageCircle, Eye, Bookmark, Sparkles, BarChart3 } from "lucide-react";
+import { Heart, MessageCircle, Eye, Bookmark, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { UserAvatar } from "@/components/shared/Avatar";
 import { RankBadge } from "@/components/shared/Badge";
 import { ShareButtons } from "@/components/shared/ShareButtons";
 import { TagList } from "@/components/shared/TagList";
+import { Poll } from "@/components/shared/Poll";
 import { DEMO_USERS, DEMO_CATEGORIES, DEMO_POLLS } from "@/lib/demo-data";
 import type { UserRank } from "@/lib/types";
 
@@ -92,24 +93,14 @@ export function PostCard({ post, postIndex, liked, bookmarked, likeCount, onLike
         {contentPreview}
       </p>
 
-      {/* Poll preview */}
+      {/* Poll */}
       {poll && (
-        <div className="mb-3 rounded-lg border border-green-500/10 bg-black/30 p-3">
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
-            <BarChart3 className="size-3.5" />
-            <span>Poll</span>
-          </div>
-          <div className="space-y-1.5">
-            {poll.options.slice(0, 3).map((opt) => (
-              <div key={opt.text} className="text-xs text-muted-foreground flex justify-between">
-                <span>{opt.text}</span>
-                <span>{opt.votes} votes</span>
-              </div>
-            ))}
-            {poll.options.length > 3 && (
-              <span className="text-[10px] text-muted-foreground">+{poll.options.length - 3} more options</span>
-            )}
-          </div>
+        <div className="mb-3">
+          <Poll
+            pollId={`poll-${postIndex}`}
+            question={poll.question}
+            options={poll.options}
+          />
         </div>
       )}
 
