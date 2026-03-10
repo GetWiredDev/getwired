@@ -17,6 +17,7 @@ import {
   Settings,
   Users,
 } from "lucide-react";
+import { NotificationBell } from "@/components/shared/NotificationBell";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -82,16 +83,11 @@ export function Navbar() {
 
           {/* Right side */}
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-white">
+            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-white" render={<Link href="/search" />}>
               <Search className="size-4" />
             </Button>
 
-            <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:text-white">
-              <Bell className="size-4" />
-              <span className="absolute -top-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full bg-[#00FF41] text-[9px] font-bold text-black">
-                3
-              </span>
-            </Button>
+            <NotificationBell />
 
             {isSignedIn && user ? (
               <UserMenu
@@ -151,9 +147,11 @@ function UserMenu({
         <DropdownMenuItem className="gap-2 cursor-pointer">
           <User className="size-4" /> View Profile
         </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2 cursor-pointer">
-          <Bookmark className="size-4" /> Bookmarks
-        </DropdownMenuItem>
+        <Link href="/bookmarks">
+          <DropdownMenuItem className="gap-2 cursor-pointer">
+            <Bookmark className="size-4" /> Bookmarks
+          </DropdownMenuItem>
+        </Link>
         <DropdownMenuItem className="gap-2 cursor-pointer">
           <Settings className="size-4" /> Settings
         </DropdownMenuItem>
