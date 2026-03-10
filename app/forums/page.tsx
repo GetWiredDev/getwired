@@ -8,6 +8,11 @@ export const metadata: Metadata = {
     title: "Forums | GetWired.dev",
     description: "Browse tech discussion forums — AI, web dev, mobile, security, startups, career, and more.",
   },
+  twitter: {
+    card: "summary",
+    title: "Forums | GetWired.dev",
+    description: "Browse tech discussion forums — AI, web dev, mobile, security, startups, career, and more.",
+  },
 };
 
 export default function ForumsPage() {

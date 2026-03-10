@@ -20,7 +20,7 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Made with Opus 4.6",
+    default: "GetWired.dev | Made with Opus 4.6 — Tech Community Platform",
     template: "%s | GetWired.dev",
   },
   description:

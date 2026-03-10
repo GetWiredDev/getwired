@@ -8,6 +8,11 @@ export const metadata: Metadata = {
     title: "Chat | GetWired.dev",
     description: "Real-time chat rooms for the GetWired.dev community.",
   },
+  twitter: {
+    card: "summary",
+    title: "Chat | GetWired.dev",
+    description: "Real-time chat rooms for the GetWired.dev community.",
+  },
 };
 
 export default function ChatPage() {

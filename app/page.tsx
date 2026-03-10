@@ -50,6 +50,15 @@ function formatEventDate(ts: number): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+const ORG_JSON_LD = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: "GetWired.dev",
+  url: "https://getwired.dev",
+  description: "The all-in-one tech community platform for developers.",
+  sameAs: [],
+};
+
 export default function Home() {
   const [activeTab, setActiveTab] = useState<FeedTab>("hot");
   const [localPosts, setLocalPosts] = useState(DEMO_POSTS);
@@ -74,6 +83,10 @@ export default function Home() {
 
   return (
     <div className="mx-auto flex max-w-7xl gap-6 px-4 py-6">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(ORG_JSON_LD) }}
+      />
       <Sidebar />
 
       {/* Main feed */}

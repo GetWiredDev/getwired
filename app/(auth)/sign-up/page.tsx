@@ -8,6 +8,11 @@ export const metadata: Metadata = {
     title: "Sign Up | GetWired.dev",
     description: "Create your GetWired.dev account — join the tech community.",
   },
+  twitter: {
+    card: "summary",
+    title: "Sign Up | GetWired.dev",
+    description: "Create your GetWired.dev account — join the tech community.",
+  },
 };
 
 export default function SignUpPage() {

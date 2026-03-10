@@ -48,6 +48,34 @@ export function generateStaticParams() {
 export default async function PostPage({ params }: Props) {
   const { category, postId } = await params;
   const idx = getPostIndex(postId);
-  return <PostPageClient categorySlug={category} postIndex={idx} />;
+  const post = idx >= 0 ? DEMO_POSTS[idx] : undefined;
+  const author = post ? DEMO_USERS[post.authorIndex] : undefined;
+
+  const jsonLd = post
+    ? {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        headline: post.title,
+        description: post.content.slice(0, 160),
+        author: author
+          ? { "@type": "Person", name: author.name, url: `https://getwired.dev/profile/${author.username}` }
+          : undefined,
+        datePublished: new Date(post.createdAt).toISOString(),
+        publisher: { "@type": "Organization", name: "GetWired.dev", url: "https://getwired.dev" },
+        mainEntityOfPage: `https://getwired.dev/forums/${category}/${postId}`,
+      }
+    : null;
+
+  return (
+    <>
+      {jsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      )}
+      <PostPageClient categorySlug={category} postIndex={idx} />
+    </>
+  );
 }
 

@@ -8,6 +8,11 @@ export const metadata: Metadata = {
     title: "Sign In | GetWired.dev",
     description: "Sign in to GetWired.dev — the all-in-one tech community platform.",
   },
+  twitter: {
+    card: "summary",
+    title: "Sign In | GetWired.dev",
+    description: "Sign in to GetWired.dev — the all-in-one tech community platform.",
+  },
 };
 
 export default function SignInPage() {

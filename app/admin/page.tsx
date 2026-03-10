@@ -8,6 +8,11 @@ export const metadata: Metadata = {
     title: "Admin Dashboard | GetWired.dev",
     description: "Admin dashboard — manage users, moderate content, and view platform stats.",
   },
+  twitter: {
+    card: "summary",
+    title: "Admin Dashboard | GetWired.dev",
+    description: "Admin dashboard — manage users, moderate content, and view platform stats.",
+  },
 };
 
 export default function AdminPage() {

@@ -19,9 +19,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!user) {
     return { title: "User Not Found" };
   }
+  const desc = user.bio || `${user.name}'s profile on GetWired.dev`;
   return {
     title: `${user.name} (@${user.username})`,
-    description: user.bio || `${user.name}'s profile on GetWired.dev`,
+    description: desc,
+    openGraph: {
+      title: `${user.name} (@${user.username}) | GetWired.dev`,
+      description: desc,
+      type: "profile",
+    },
+    twitter: {
+      card: "summary",
+      title: `${user.name} (@${user.username}) | GetWired.dev`,
+      description: desc,
+    },
   };
 }
 
@@ -56,12 +67,33 @@ export default async function ProfilePage({ params }: Props) {
       createdAt: c.createdAt,
     }));
 
+  const personJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Person",
+    name: user.name,
+    url: `https://getwired.dev/profile/${user.username}`,
+    jobTitle: user.experience?.[0]?.title,
+    description: user.bio,
+    sameAs: [
+      user.website,
+      user.github ? `https://github.com/${user.github}` : undefined,
+      user.twitter ? `https://twitter.com/${user.twitter}` : undefined,
+      user.linkedin ? `https://linkedin.com/in/${user.linkedin}` : undefined,
+    ].filter(Boolean),
+  };
+
   return (
-    <ProfilePageClient
-      user={user}
-      posts={userPosts}
-      comments={userComments}
-    />
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(personJsonLd) }}
+      />
+      <ProfilePageClient
+        user={user}
+        posts={userPosts}
+        comments={userComments}
+      />
+    </>
   );
 }
 

@@ -6,6 +6,15 @@ export const metadata: Metadata = {
   title: "Tech News",
   description:
     "Stay up to date with the latest tech news from Hacker News, The Verge, TechCrunch, and more — curated for the GetWired.dev community.",
+  openGraph: {
+    title: "Tech News | GetWired.dev",
+    description: "Stay up to date with the latest tech news — curated for the GetWired.dev community.",
+  },
+  twitter: {
+    card: "summary",
+    title: "Tech News | GetWired.dev",
+    description: "Stay up to date with the latest tech news — curated for the GetWired.dev community.",
+  },
 };
 
 export default function NewsPage() {

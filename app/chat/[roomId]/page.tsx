@@ -12,12 +12,18 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const room = DEMO_CHAT_ROOMS[index];
   const name = room?.name ?? "Chat Room";
 
+  const desc = room?.description ?? "Chat room on GetWired.dev";
   return {
     title: name,
-    description: room?.description ?? "Chat room on GetWired.dev",
+    description: desc,
     openGraph: {
       title: `${name} | GetWired.dev`,
-      description: room?.description ?? "Chat room on GetWired.dev",
+      description: desc,
+    },
+    twitter: {
+      card: "summary",
+      title: `${name} | GetWired.dev`,
+      description: desc,
     },
   };
 }

@@ -10,12 +10,18 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { category: slug } = await params;
   const cat = DEMO_CATEGORIES.find((c) => c.slug === slug);
   const name = cat?.name ?? "Category";
+  const desc = cat?.description ?? `Browse posts in ${name}`;
   return {
     title: name,
-    description: cat?.description ?? `Browse posts in ${name}`,
+    description: desc,
     openGraph: {
       title: `${name} | Forums | GetWired.dev`,
-      description: cat?.description ?? `Browse posts in ${name}`,
+      description: desc,
+    },
+    twitter: {
+      card: "summary",
+      title: `${name} | Forums | GetWired.dev`,
+      description: desc,
     },
   };
 }

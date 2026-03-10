@@ -8,6 +8,11 @@ export const metadata: Metadata = {
     title: "Notifications | GetWired.dev",
     description: "View your notifications — likes, comments, mentions, follows, and news updates.",
   },
+  twitter: {
+    card: "summary",
+    title: "Notifications | GetWired.dev",
+    description: "View your notifications — likes, comments, mentions, follows, and news updates.",
+  },
 };
 
 export default function NotificationsPage() {

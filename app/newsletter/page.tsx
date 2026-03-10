@@ -10,6 +10,11 @@ export const metadata: Metadata = {
     description:
       "Stay Wired — weekly digest of the best posts, trending news, and community highlights.",
   },
+  twitter: {
+    card: "summary",
+    title: "Newsletter | GetWired.dev",
+    description: "Stay Wired — weekly digest of the best posts, trending news, and community highlights.",
+  },
 };
 
 export default function NewsletterPage() {

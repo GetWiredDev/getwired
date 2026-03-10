@@ -8,6 +8,11 @@ export const metadata: Metadata = {
     title: "Bookmarks | GetWired.dev",
     description: "Your saved posts, news articles, and users on GetWired.dev.",
   },
+  twitter: {
+    card: "summary",
+    title: "Bookmarks | GetWired.dev",
+    description: "Your saved posts, news articles, and users on GetWired.dev.",
+  },
 };
 
 export default function BookmarksPage() {
