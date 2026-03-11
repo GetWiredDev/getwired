@@ -160,7 +160,7 @@ function ResultSection({
     <section>
       <div className="flex items-center gap-2 mb-3">
         <Icon className="size-4 text-[#3B82F6]" />
-        <h2 className="text-sm font-semibold text-white">{title}</h2>
+        <h2 className="text-sm font-semibold text-foreground">{title}</h2>
         <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{count}</Badge>
       </div>
       <div className="space-y-2">{children}</div>

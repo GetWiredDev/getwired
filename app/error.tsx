@@ -20,7 +20,7 @@ export default function Error({
       <div className="mb-6 flex size-16 items-center justify-center rounded-full bg-red-500/10">
         <AlertTriangle className="size-8 text-red-500" />
       </div>
-      <h1 className="text-2xl font-bold text-white mb-2">Something Went Wrong</h1>
+      <h1 className="text-2xl font-bold text-foreground mb-2">Something Went Wrong</h1>
       <p className="text-muted-foreground mb-6 max-w-md">
         A wire got crossed somewhere. Don&apos;t worry — try again and things
         should reconnect.

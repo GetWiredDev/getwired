@@ -63,7 +63,7 @@ export function ProfilePageClient({ user, posts, comments }: ProfilePageClientPr
       <ProfileHeader user={{ ...user, postCount: posts.length }} isOwnProfile={isOwnProfile} />
 
       <Tabs defaultValue="overview">
-        <TabsList className="w-full justify-start bg-zinc-900/40 border border-white/[0.06] rounded-full p-1 h-auto">
+        <TabsList className="w-full justify-start bg-muted/50 border border-border rounded-full p-1 h-auto">
           <TabsTrigger value="overview" className="rounded-full text-xs px-4 py-1.5 data-active:bg-[#3B82F6] data-active:text-white data-active:shadow-lg data-active:shadow-blue-500/20">
             Overview
           </TabsTrigger>

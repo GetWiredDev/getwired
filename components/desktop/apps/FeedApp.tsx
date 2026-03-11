@@ -76,7 +76,7 @@ export function FeedApp() {
 
         <div className="mt-4">
           <Tabs defaultValue="hot" onValueChange={(v) => setActiveTab(v as FeedTab)}>
-            <TabsList className="mb-4 bg-zinc-900/40 border border-white/8">
+            <TabsList className="mb-4 bg-muted/50 border border-border">
               <TabsTrigger value="hot" className="gap-1.5 data-active:text-[#3B82F6]">
                 <Flame className="size-3.5" /> Hot
               </TabsTrigger>

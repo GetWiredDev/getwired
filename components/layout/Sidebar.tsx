@@ -43,7 +43,7 @@ export function Sidebar() {
               <Link
                 key={cat.name}
                 href={`/forums/${cat.name.toLowerCase().replace(" ", "-")}`}
-                className="flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-white/5 hover:text-white"
+                className="flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
               >
                 <cat.icon className={`size-4 ${cat.color}`} />
                 {cat.name}
@@ -85,7 +85,7 @@ export function Sidebar() {
               <Link
                 key={link.href}
                 href={link.href}
-                className="rounded-lg px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-white/5 hover:text-white"
+                className="rounded-lg px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
               >
                 {link.label}
               </Link>

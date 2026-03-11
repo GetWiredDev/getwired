@@ -82,11 +82,11 @@ export function BookmarksClient() {
     <main className="mx-auto max-w-3xl px-4 py-6">
       <div className="flex items-center gap-3 mb-6">
         <Bookmark className="size-6 text-[#3B82F6]" />
-        <h1 className="text-2xl font-bold text-white">Bookmarks</h1>
+        <h1 className="text-2xl font-bold text-foreground">Bookmarks</h1>
       </div>
 
       <Tabs defaultValue="posts">
-        <TabsList className="mb-4 bg-zinc-900/40 border border-white/8">
+        <TabsList className="mb-4 bg-muted/50 border border-border">
           <TabsTrigger value="posts" className="data-active:text-[#3B82F6]">
             Posts ({posts.length})
           </TabsTrigger>
@@ -115,7 +115,7 @@ export function BookmarksClient() {
 function BookmarkList({ items, onRemove }: { items: BookmarkItem[]; onRemove: (id: string) => void }) {
   if (items.length === 0) {
     return (
-      <div className="rounded-lg border border-white/5 bg-white/[0.02] px-4 py-12 text-center">
+      <div className="rounded-lg border border-border bg-muted/30 px-4 py-12 text-center">
         <Bookmark className="mx-auto size-10 text-muted-foreground/40 mb-3" />
         <p className="text-sm text-muted-foreground">No bookmarks yet</p>
       </div>
@@ -125,10 +125,10 @@ function BookmarkList({ items, onRemove }: { items: BookmarkItem[]; onRemove: (i
   return (
     <div className="space-y-2">
       {items.map((item) => (
-        <Card key={item.id} className="glass border-white/5 p-3">
+        <Card key={item.id} className="glass border-border p-3">
           <div className="flex items-start justify-between gap-3">
             <Link href={item.link} className="flex-1 min-w-0 group">
-              <h3 className="text-sm font-medium text-white group-hover:text-[#3B82F6] transition-colors line-clamp-1">
+              <h3 className="text-sm font-medium text-foreground group-hover:text-[#3B82F6] transition-colors line-clamp-1">
                 {item.title}
               </h3>
               <p className="mt-0.5 text-xs text-muted-foreground">{item.subtitle}</p>

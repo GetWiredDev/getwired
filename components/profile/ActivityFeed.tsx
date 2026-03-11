@@ -88,7 +88,7 @@ export function ActivityFeed({ posts, comments, mode = "all" }: ActivityFeedProp
               {(mode === "all" ? posts.slice(0, 3) : posts).map((post, i) => (
                 <article
                   key={i}
-                  className="group glass rounded-xl overflow-hidden flex transition-all duration-200 hover:shadow-lg hover:shadow-black/20 hover:-translate-y-px hover:border-white/[0.1]"
+                  className="group glass rounded-xl overflow-hidden flex transition-all duration-200 hover:shadow-lg hover:shadow-black/20 hover:-translate-y-px hover:border-border"
                 >
                   {/* Left accent bar */}
                   <div className={`w-[3px] shrink-0 ${getCategoryColor(post.category)}`} />
@@ -140,7 +140,7 @@ export function ActivityFeed({ posts, comments, mode = "all" }: ActivityFeedProp
               {(mode === "all" ? comments.slice(0, 3) : comments).map((comment, i) => (
                 <article
                   key={i}
-                  className="group glass rounded-xl overflow-hidden transition-all duration-200 hover:shadow-lg hover:shadow-black/20 hover:-translate-y-px hover:border-white/[0.1]"
+                  className="group glass rounded-xl overflow-hidden transition-all duration-200 hover:shadow-lg hover:shadow-black/20 hover:-translate-y-px hover:border-border"
                 >
                   <div className="p-3 pl-4 border-l-2 border-[#3B82F6]/40 ml-px">
                     <p className="text-sm text-foreground/80 line-clamp-2 leading-relaxed italic">

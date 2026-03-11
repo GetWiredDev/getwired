@@ -96,7 +96,7 @@ export function NewsFeed() {
               "cursor-pointer transition-colors text-xs px-3 py-1",
               source === s
                 ? "bg-[#3B82F6] text-white hover:bg-[#3B82F6]/80"
-                : "hover:bg-white/10"
+                : "hover:bg-accent"
             )}
             onClick={() => handleSourceChange(s)}
           >

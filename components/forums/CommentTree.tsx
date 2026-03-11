@@ -72,10 +72,10 @@ function CommentNode({ comment, children, allComments, depth, onLike, likedComme
         <div className="py-2">
           <div className="flex items-center gap-2 mb-1">
             <UserAvatar src={author.avatar} name={author.name} size="sm" />
-            <span className="text-xs font-medium text-white">{author.name}</span>
+            <span className="text-xs font-medium text-foreground">{author.name}</span>
             <RankBadge rank={author.rank} />
             <span className="text-[10px] text-muted-foreground">{formatTimeAgo(comment.createdAt)}</span>
-            <button onClick={() => setCollapsed(true)} className="ml-auto text-muted-foreground hover:text-white">
+            <button onClick={() => setCollapsed(true)} className="ml-auto text-muted-foreground hover:text-foreground">
               <ChevronUp className="size-3.5" />
             </button>
           </div>
@@ -105,7 +105,7 @@ function CommentNode({ comment, children, allComments, depth, onLike, likedComme
           )}
         </div>
       ) : (
-        <button onClick={() => setCollapsed(false)} className="flex items-center gap-2 py-2 text-xs text-muted-foreground hover:text-white">
+        <button onClick={() => setCollapsed(false)} className="flex items-center gap-2 py-2 text-xs text-muted-foreground hover:text-foreground">
           <ChevronDown className="size-3.5" />
           <UserAvatar src={author.avatar} name={author.name} size="sm" />
           <span>{author.name}</span>
@@ -205,7 +205,7 @@ export function CommentTree({ postIndex }: CommentTreeProps) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-white">
+        <h3 className="text-sm font-semibold text-foreground">
           {totalCount} {totalCount === 1 ? "Comment" : "Comments"}
         </h3>
         <div className="flex items-center gap-1">

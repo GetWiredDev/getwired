@@ -32,7 +32,7 @@ function LeaderboardList({ users }: { users: typeof DEMO_USERS }) {
           <Link
             key={user.clerkId}
             href={`/profile/${user.username}`}
-            className={`flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-white/5 ${
+            className={`flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-accent ${
               isTop3 ? "bg-[#3B82F6]/5" : ""
             }`}
           >
@@ -63,7 +63,7 @@ function LeaderboardList({ users }: { users: typeof DEMO_USERS }) {
 
 export function Leaderboard() {
   return (
-    <Card className="glass border-white/8">
+    <Card className="glass border-border">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-sm font-semibold">
           <Trophy className="size-4 text-[#3B82F6]" />
@@ -72,7 +72,7 @@ export function Leaderboard() {
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="month">
-          <TabsList className="mb-3 bg-zinc-900/40 border border-white/8 w-full">
+          <TabsList className="mb-3 bg-muted/50 border border-border w-full">
             <TabsTrigger value="month" className="flex-1 text-xs data-active:text-[#3B82F6]">
               This Month
             </TabsTrigger>

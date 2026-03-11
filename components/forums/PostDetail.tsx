@@ -54,12 +54,12 @@ function PostContent({ post, author, category, liked, bookmarked, likeCount, onL
         {post.tags.map((tag) => (<Badge key={tag} variant="secondary" className="text-[10px]">#{tag}</Badge>))}
         {post.isPinned && (<Badge className="bg-[#3B82F6]/10 text-[#3B82F6] text-[10px] border-[#3B82F6]/30">📌 Pinned</Badge>)}
       </div>
-      <h1 className="text-xl font-bold text-white mb-4">{post.title}</h1>
+      <h1 className="text-xl font-bold text-foreground mb-4">{post.title}</h1>
       <div className="flex items-center gap-3 mb-6">
         <UserAvatar src={author.avatar} name={author.name} size="md" />
         <div>
           <div className="flex items-center gap-2">
-            <Link href={`/profile/${author.username}`} className="text-sm font-medium text-white hover:text-[#3B82F6] transition-colors">{author.name}</Link>
+            <Link href={`/profile/${author.username}`} className="text-sm font-medium text-foreground hover:text-[#3B82F6] transition-colors">{author.name}</Link>
             <RankBadge rank={author.rank} />
           </div>
           <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
@@ -86,7 +86,7 @@ function AuthorCard({ author }: { author: (typeof DEMO_USERS)[number] }) {
       <div className="flex items-center gap-3 mb-3">
         <UserAvatar src={author.avatar} name={author.name} size="lg" />
         <div>
-          <Link href={`/profile/${author.username}`} className="text-sm font-semibold text-white hover:text-[#3B82F6] transition-colors">{author.name}</Link>
+          <Link href={`/profile/${author.username}`} className="text-sm font-semibold text-foreground hover:text-[#3B82F6] transition-colors">{author.name}</Link>
           <div className="flex items-center gap-1.5 mt-0.5">
             <RankBadge rank={author.rank} />
             <span className="text-[10px] text-muted-foreground">{author.karma.toLocaleString()} karma</span>
@@ -107,14 +107,14 @@ function RelatedPosts({ posts }: { posts: Array<(typeof DEMO_POSTS)[number] & { 
   if (posts.length === 0) return null;
   return (
     <div className="glass rounded-xl p-5">
-      <h3 className="text-sm font-semibold text-white mb-3">Related Posts</h3>
+      <h3 className="text-sm font-semibold text-foreground mb-3">Related Posts</h3>
       <div className="space-y-3">
         {posts.map((rp) => {
           const rpAuthor = DEMO_USERS[rp.authorIndex];
           return (
             <Link key={rp.index} href={`/forums/${rp.category}/post-${rp.index}`} className="block group">
-              <div className="rounded-lg p-3 transition-colors hover:bg-white/5">
-                <h4 className="text-xs font-medium text-white group-hover:text-[#3B82F6] transition-colors line-clamp-2">{rp.title}</h4>
+              <div className="rounded-lg p-3 transition-colors hover:bg-accent">
+                <h4 className="text-xs font-medium text-foreground group-hover:text-[#3B82F6] transition-colors line-clamp-2">{rp.title}</h4>
                 <div className="flex items-center gap-2 mt-1.5 text-[10px] text-muted-foreground">
                   <span>{rpAuthor?.name}</span><span>·</span>
                   <span className="flex items-center gap-0.5"><Heart className="size-2.5" /> {rp.likes}</span>

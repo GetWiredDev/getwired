@@ -19,7 +19,7 @@ interface UserSuggestionProps {
 
 export function UserSuggestion({ user }: UserSuggestionProps) {
   return (
-    <Card className="glass border-white/8 hover:border-[#3B82F6]/20 transition-all">
+    <Card className="glass border-border hover:border-[#3B82F6]/20 transition-all">
       <CardContent className="p-4">
         <div className="flex items-start gap-3">
           <Link href={`/profile/${user.username}`}>

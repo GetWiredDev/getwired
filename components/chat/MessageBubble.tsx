@@ -45,8 +45,8 @@ export function MessageBubble({ message, onReact, onOpenThread }: MessageBubbleP
   return (
     <div
       className={cn(
-        "group flex gap-3 px-4 py-1.5 hover:bg-white/[0.02] transition-colors",
-        message.isOwn && "bg-white/[0.01]"
+        "group flex gap-3 px-4 py-1.5 hover:bg-accent/50 transition-colors",
+        message.isOwn && "bg-accent/30"
       )}
     >
       <UserAvatar
@@ -101,7 +101,7 @@ export function MessageBubble({ message, onReact, onOpenThread }: MessageBubbleP
       {/* Hover actions */}
       <div className="flex items-start gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
         <Popover>
-          <PopoverTrigger className="inline-flex items-center justify-center size-7 rounded-md text-muted-foreground hover:bg-white/5 hover:text-white transition-colors cursor-pointer">
+          <PopoverTrigger className="inline-flex items-center justify-center size-7 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer">
             <SmilePlus className="size-3.5" />
           </PopoverTrigger>
           <PopoverContent className="w-auto p-2" align="end">

@@ -73,7 +73,7 @@ export function NotificationsClient() {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <Bell className="size-6 text-[#3B82F6]" />
-          <h1 className="text-2xl font-bold text-white">Notifications</h1>
+          <h1 className="text-2xl font-bold text-foreground">Notifications</h1>
           {unreadCount > 0 && (
             <span className="flex items-center justify-center rounded-full bg-[#3B82F6]/20 px-2 py-0.5 text-xs font-medium text-[#3B82F6]">
               {unreadCount} unread
@@ -94,7 +94,7 @@ export function NotificationsClient() {
       </div>
 
       <Tabs defaultValue="all" onValueChange={setActiveTab}>
-        <TabsList className="mb-4 bg-zinc-900/40 border border-white/8 flex-wrap">
+        <TabsList className="mb-4 bg-muted/50 border border-border flex-wrap">
           {FILTER_TABS.map((tab) => (
             <TabsTrigger
               key={tab.value}
@@ -109,12 +109,12 @@ export function NotificationsClient() {
         {FILTER_TABS.map((tab) => (
           <TabsContent key={tab.value} value={tab.value}>
             {filtered.length === 0 ? (
-              <div className="rounded-lg border border-white/5 bg-white/[0.02] px-4 py-12 text-center">
+              <div className="rounded-lg border border-border bg-muted/30 px-4 py-12 text-center">
                 <Bell className="mx-auto size-10 text-muted-foreground/40 mb-3" />
                 <p className="text-sm text-muted-foreground">No notifications</p>
               </div>
             ) : (
-              <div className="space-y-1 rounded-lg border border-white/5 bg-white/[0.02] p-2">
+              <div className="space-y-1 rounded-lg border border-border bg-muted/30 p-2">
                 {filtered.map((n, i) => (
                   <NotificationItem
                     key={`${n.type}-${n.createdAt}`}

@@ -45,7 +45,7 @@ export function DiscoverContent() {
           {/* Left column */}
           <div className="space-y-6">
             {/* Trending Posts */}
-            <Card className="glass border-white/8">
+            <Card className="glass border-border">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-sm font-semibold">
                   <Flame className="size-4 text-[#3B82F6]" />
@@ -60,7 +60,7 @@ export function DiscoverContent() {
                     <Link
                       key={`${post.title}-${i}`}
                       href={`/forums/${post.category}/post-${DEMO_POSTS.indexOf(post)}`}
-                      className="flex gap-3 rounded-lg p-2 hover:bg-white/5 transition-colors group"
+                      className="flex gap-3 rounded-lg p-2 hover:bg-accent transition-colors group"
                     >
                       <span className="text-lg font-bold text-muted-foreground/40 w-6 shrink-0 text-center">
                         {i + 1}
@@ -98,7 +98,7 @@ export function DiscoverContent() {
             <TrendingTags />
 
             {/* Who to Follow */}
-            <Card className="glass border-white/8">
+            <Card className="glass border-border">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-sm font-semibold">
                   👥 Who to Follow

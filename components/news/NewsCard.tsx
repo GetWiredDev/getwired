@@ -95,7 +95,7 @@ export function NewsCard({ article, articleIndex }: NewsCardProps) {
       <TagList tags={article.tags.slice(0, 4)} size="sm" className="mb-3" />
 
       {/* Discuss button */}
-      <div className="flex items-center justify-between mt-auto pt-2 border-t border-white/5">
+      <div className="flex items-center justify-between mt-auto pt-2 border-t border-border">
         <Link href={`/forums/ai-ml/post-${articleIndex % 20}`}>
           <Button
             variant="ghost"

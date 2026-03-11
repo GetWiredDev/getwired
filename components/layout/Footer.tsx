@@ -9,7 +9,7 @@ const FOOTER_LINKS = [
 
 export function Footer() {
   return (
-    <footer className="border-t border-white/8 bg-zinc-900/30">
+    <footer className="border-t border-border bg-muted/50">
       <div className="mx-auto flex max-w-7xl flex-col items-center gap-3 px-4 py-6 sm:flex-row sm:justify-between">
         <p className="text-xs text-muted-foreground">
           Made with{" "}

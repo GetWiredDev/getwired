@@ -63,13 +63,13 @@ export function NotificationItem({
       href={link}
       onClick={onClick}
       className={cn(
-        "flex items-start gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-white/5",
+        "flex items-start gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-accent",
         !isRead && "border-l-2 border-l-[#3B82F6]",
         isRead && "border-l-2 border-l-transparent opacity-70",
         className
       )}
     >
-      <div className={cn("mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-white/5", iconColor)}>
+      <div className={cn("mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-muted/50", iconColor)}>
         <Icon className="size-4" />
       </div>
       <div className="flex-1 min-w-0">

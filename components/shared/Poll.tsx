@@ -62,7 +62,7 @@ export function Poll({ pollId, question, options, expiresAt }: PollProps) {
   const isExpired = expiresAt ? Date.now() > expiresAt : false;
 
   return (
-    <Card className="glass border-white/8">
+    <Card className="glass border-border">
       <CardContent className="p-4">
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-3">
           <BarChart3 className="size-3.5 text-[#3B82F6]" />
@@ -85,7 +85,7 @@ export function Poll({ pollId, question, options, expiresAt }: PollProps) {
                 className={`relative w-full rounded-lg border p-2.5 text-left text-sm transition-all ${
                   isSelected && !hasVoted
                     ? "border-[#3B82F6]/50 bg-[#3B82F6]/10"
-                    : "border-white/5 hover:border-white/10"
+                    : "border-border hover:border-border"
                 } ${hasVoted || isExpired ? "cursor-default" : "cursor-pointer"}`}
               >
                 {/* Vote bar background */}
@@ -100,7 +100,7 @@ export function Poll({ pollId, question, options, expiresAt }: PollProps) {
                     {!hasVoted && !isExpired && (
                       <div
                         className={`size-4 rounded-full border-2 shrink-0 ${
-                          isSelected ? "border-[#3B82F6] bg-[#3B82F6]" : "border-white/20"
+                          isSelected ? "border-[#3B82F6] bg-[#3B82F6]" : "border-border"
                         }`}
                       >
                         {isSelected && (

@@ -31,17 +31,17 @@ export function PostPageClient({ categorySlug, postIndex }: PostPageClientProps)
     <div className="mx-auto max-w-4xl px-4 py-6">
       {/* Breadcrumb */}
       <nav className="flex items-center gap-1.5 text-xs text-muted-foreground mb-4 flex-wrap">
-        <Link href="/forums" className="hover:text-white transition-colors">Forums</Link>
+        <Link href="/forums" className="hover:text-foreground transition-colors">Forums</Link>
         <ChevronRight className="size-3" />
         {category && (
           <>
-            <Link href={`/forums/${category.slug}`} className="hover:text-white transition-colors">
+            <Link href={`/forums/${category.slug}`} className="hover:text-foreground transition-colors">
               {category.name}
             </Link>
             <ChevronRight className="size-3" />
           </>
         )}
-        <span className="text-white line-clamp-1">{post.title}</span>
+        <span className="text-foreground line-clamp-1">{post.title}</span>
       </nav>
 
       {/* Post detail */}

@@ -21,7 +21,7 @@ export function ForumsPageClient() {
       <div className="mb-6">
         <div className="flex items-center gap-2 mb-2">
           <MessageSquare className="size-6 text-[#3B82F6]" />
-          <h1 className="text-2xl font-bold text-white">Forums</h1>
+          <h1 className="text-2xl font-bold text-foreground">Forums</h1>
         </div>
         <p className="text-sm text-muted-foreground">
           Join the conversation across {DEMO_CATEGORIES.length} tech communities
@@ -35,7 +35,7 @@ export function ForumsPageClient() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search categories..."
-          className="pl-9 bg-zinc-900/30"
+          className="pl-9 bg-muted/50"
         />
       </div>
 

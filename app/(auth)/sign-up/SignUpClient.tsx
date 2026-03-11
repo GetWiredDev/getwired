@@ -26,7 +26,7 @@ export function SignUpClient() {
   return (
     <main className="mx-auto max-w-md px-4 py-12">
       <div className="text-center mb-8">
-        <h1 className="text-2xl font-bold text-white">
+        <h1 className="text-2xl font-bold text-foreground">
           Create Account on <span className="text-[#3B82F6]">GetWired.dev</span>
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">Select a demo user or fill in the form below</p>
@@ -39,15 +39,15 @@ export function SignUpClient() {
           return (
             <Card
               key={u.id}
-              className="glass border-white/5 p-3 cursor-pointer hover:border-[#3B82F6]/30 transition-all"
+              className="glass border-border p-3 cursor-pointer hover:border-[#3B82F6]/30 transition-all"
               onClick={() => handleSelectUser(u.id)}
             >
               <div className="flex items-center gap-3">
                 <UserAvatar src={u.avatarUrl} name={u.displayName} size="md" />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-white">{u.displayName}</span>
-                    <Badge variant="outline" className="text-[10px] border-white/10" style={{ color: rankInfo?.color }}>
+                    <span className="text-sm font-medium text-foreground">{u.displayName}</span>
+                    <Badge variant="outline" className="text-[10px] border-border" style={{ color: rankInfo?.color }}>
                       {rankInfo?.label ?? u.rank}
                     </Badge>
                   </div>
@@ -59,36 +59,36 @@ export function SignUpClient() {
         })}
       </div>
 
-      <Separator className="my-6 bg-white/5" />
+      <Separator className="my-6 bg-border" />
 
       {/* Social Login Buttons */}
       <div className="grid gap-2 mb-6">
-        <Button variant="outline" className="border-white/10 w-full" onClick={() => toast.info("Demo mode — social login not connected")}>
+        <Button variant="outline" className="border-border w-full" onClick={() => toast.info("Demo mode — social login not connected")}>
           <Chrome className="mr-2 size-4" /> Continue with Google
         </Button>
-        <Button variant="outline" className="border-white/10 w-full" onClick={() => toast.info("Demo mode — social login not connected")}>
+        <Button variant="outline" className="border-border w-full" onClick={() => toast.info("Demo mode — social login not connected")}>
           <Github className="mr-2 size-4" /> Continue with GitHub
         </Button>
-        <Button variant="outline" className="border-white/10 w-full" onClick={() => toast.info("Demo mode — social login not connected")}>
+        <Button variant="outline" className="border-border w-full" onClick={() => toast.info("Demo mode — social login not connected")}>
           <Twitter className="mr-2 size-4" /> Continue with X
         </Button>
       </div>
 
-      <Separator className="my-6 bg-white/5" />
+      <Separator className="my-6 bg-border" />
 
       {/* Registration Form */}
       <form onSubmit={(e) => { e.preventDefault(); toast.info("Demo mode — select a user above"); }} className="space-y-4">
         <div>
           <Label htmlFor="name" className="text-sm text-muted-foreground">Full Name</Label>
-          <Input id="name" type="text" placeholder="Jane Doe" className="mt-1 bg-zinc-900/40 border-white/10" />
+          <Input id="name" type="text" placeholder="Jane Doe" className="mt-1 bg-muted/50 border-border" />
         </div>
         <div>
           <Label htmlFor="email" className="text-sm text-muted-foreground">Email</Label>
-          <Input id="email" type="email" placeholder="you@example.com" className="mt-1 bg-zinc-900/40 border-white/10" />
+          <Input id="email" type="email" placeholder="you@example.com" className="mt-1 bg-muted/50 border-border" />
         </div>
         <div>
           <Label htmlFor="password" className="text-sm text-muted-foreground">Password</Label>
-          <Input id="password" type="password" placeholder="••••••••" className="mt-1 bg-zinc-900/40 border-white/10" />
+          <Input id="password" type="password" placeholder="••••••••" className="mt-1 bg-muted/50 border-border" />
         </div>
         <Button type="submit" className="w-full bg-[#3B82F6] text-white font-semibold hover:bg-[#2563EB]">
           Create Account

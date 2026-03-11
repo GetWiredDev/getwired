@@ -13,7 +13,7 @@ export function NewsApp() {
             <Newspaper className="size-5 text-[#3B82F6]" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-white">Tech News</h1>
+            <h1 className="text-2xl font-bold text-foreground">Tech News</h1>
             <p className="text-sm text-muted-foreground">
               Curated tech news with AI summaries — discuss articles with the community
             </p>

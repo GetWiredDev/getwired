@@ -51,7 +51,7 @@ function SearchPageContent() {
           <div className="flex size-10 items-center justify-center rounded-lg bg-[#3B82F6]/10">
             <Search className="size-5 text-[#3B82F6]" />
           </div>
-          <h1 className="text-2xl font-bold text-white">Search</h1>
+          <h1 className="text-2xl font-bold text-foreground">Search</h1>
         </div>
 
         <SearchBar
@@ -74,7 +74,7 @@ function SearchPageContent() {
                 "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
                 tab === t.value
                   ? "bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/30"
-                  : "text-muted-foreground hover:bg-white/5 hover:text-white border border-transparent"
+                  : "text-muted-foreground hover:bg-accent hover:text-foreground border border-transparent"
               )}
             >
               {t.label}

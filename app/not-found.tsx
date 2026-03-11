@@ -9,7 +9,7 @@ export default function NotFound() {
         <div className="text-8xl font-black text-[#3B82F6]/10 select-none">404</div>
         <Zap className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 size-16 text-[#3B82F6] animate-pulse" />
       </div>
-      <h1 className="text-2xl font-bold text-white mb-2">Page Not Found</h1>
+      <h1 className="text-2xl font-bold text-foreground mb-2">Page Not Found</h1>
       <p className="text-muted-foreground mb-6 max-w-md">
         Looks like this wire got disconnected. The page you&apos;re looking for
         doesn&apos;t exist or has been moved.

@@ -88,7 +88,7 @@ export function TechStack({ techStack, aiTools }: TechStackProps) {
 
       {aiTools.length > 0 && (
         <>
-          <div className="border-t border-white/[0.06]" />
+          <div className="border-t border-border" />
           <div className="space-y-2">
             <h3 className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">
               <Bot className="size-3.5 text-purple-400" />

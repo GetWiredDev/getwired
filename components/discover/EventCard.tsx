@@ -53,7 +53,7 @@ export function EventCard({ event }: EventCardProps) {
   };
 
   return (
-    <Card className="glass border-white/8 hover:border-[#3B82F6]/20 transition-all">
+    <Card className="glass border-border hover:border-[#3B82F6]/20 transition-all">
       <CardContent className="p-4">
         {/* Type badge */}
         <div className="flex items-center justify-between mb-3">

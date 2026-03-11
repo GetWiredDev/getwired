@@ -32,18 +32,18 @@ export function AdSlot() {
 
   return (
     <Card
-      className="glass border-white/5 p-4 cursor-pointer transition-all hover:border-[#3B82F6]/20"
+      className="glass border-border p-4 cursor-pointer transition-all hover:border-[#3B82F6]/20"
       onClick={() => setClickCount((c) => c + 1)}
     >
       <div className="flex items-center justify-between mb-2">
-        <Badge variant="outline" className="text-[10px] text-muted-foreground border-white/10 px-1.5 py-0">
+        <Badge variant="outline" className="text-[10px] text-muted-foreground border-border px-1.5 py-0">
           Sponsored
         </Badge>
         <ExternalLink className="size-3 text-muted-foreground" />
       </div>
 
-      <div className="aspect-[300/250] flex flex-col items-center justify-center rounded-md bg-gradient-to-br from-[#3B82F6]/5 to-transparent border border-white/5 p-4 text-center">
-        <h4 className="text-sm font-semibold text-white mb-1">{ad.title}</h4>
+      <div className="aspect-[300/250] flex flex-col items-center justify-center rounded-md bg-gradient-to-br from-[#3B82F6]/5 to-transparent border border-border p-4 text-center">
+        <h4 className="text-sm font-semibold text-foreground mb-1">{ad.title}</h4>
         <p className="text-xs text-muted-foreground mb-3 leading-relaxed">{ad.description}</p>
         <span className="text-xs font-medium text-[#3B82F6]">{ad.cta}</span>
       </div>

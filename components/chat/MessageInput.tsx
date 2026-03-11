@@ -99,7 +99,7 @@ export function MessageInput({ onSend }: MessageInputProps) {
 
       <div className="flex items-center gap-2">
         <Popover>
-          <PopoverTrigger className="inline-flex items-center justify-center size-8 shrink-0 rounded-md text-muted-foreground hover:bg-white/5 hover:text-white transition-colors cursor-pointer">
+          <PopoverTrigger className="inline-flex items-center justify-center size-8 shrink-0 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer">
             <Smile className="size-4" />
           </PopoverTrigger>
           <PopoverContent className="w-auto p-2" align="start" side="top">

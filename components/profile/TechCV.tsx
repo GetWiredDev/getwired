@@ -83,7 +83,7 @@ export function TechCV({ experience, projects, education, certifications }: Tech
                   <span className="absolute inset-0 rounded-full bg-[#3B82F6] animate-ping opacity-20" />
                 </div>
               </div>
-              <div className="glass rounded-xl p-4 space-y-1.5 transition-all duration-200 hover:border-white/[0.1] hover:shadow-lg hover:shadow-black/20">
+              <div className="glass rounded-xl p-4 space-y-1.5 transition-all duration-200 hover:border-border hover:shadow-lg hover:shadow-black/20">
                 <div className="flex items-start gap-3">
                   <CompanyInitial name={exp.company} />
                   <div className="flex-1 min-w-0">
@@ -105,7 +105,7 @@ export function TechCV({ experience, projects, education, certifications }: Tech
           {projects.map((proj, i) => (
             <Card
               key={i}
-              className="glass border-white/5 group transition-all duration-200 hover:border-[#3B82F6]/20 hover:shadow-lg hover:shadow-blue-500/5"
+              className="glass border-border group transition-all duration-200 hover:border-[#3B82F6]/20 hover:shadow-lg hover:shadow-blue-500/5"
             >
               <CardContent className="space-y-2.5">
                 <div className="flex items-center justify-between">
@@ -140,7 +140,7 @@ export function TechCV({ experience, projects, education, certifications }: Tech
       <CollapsibleSection title="Education" icon={GraduationCap} count={education.length}>
         <div className="space-y-3">
           {education.map((edu, i) => (
-            <div key={i} className="glass rounded-xl p-4 flex items-start gap-3 transition-all duration-200 hover:border-white/[0.1]">
+            <div key={i} className="glass rounded-xl p-4 flex items-start gap-3 transition-all duration-200 hover:border-border">
               <div className="size-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center text-white shrink-0 shadow-lg shadow-emerald-500/10">
                 <GraduationCap className="size-5" />
               </div>
@@ -160,7 +160,7 @@ export function TechCV({ experience, projects, education, certifications }: Tech
       <CollapsibleSection title="Certifications" icon={Award} count={certifications.length}>
         <div className="space-y-3">
           {certifications.map((cert, i) => (
-            <div key={i} className="glass rounded-xl p-4 flex items-start gap-3 transition-all duration-200 hover:border-white/[0.1]">
+            <div key={i} className="glass rounded-xl p-4 flex items-start gap-3 transition-all duration-200 hover:border-border">
               <div className="size-10 rounded-xl bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center text-white shrink-0 shadow-lg shadow-amber-500/10">
                 <Award className="size-5" />
               </div>

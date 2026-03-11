@@ -71,7 +71,7 @@ export function ProfileHeader({ user, isOwnProfile }: ProfileHeaderProps) {
                 onClick={() => setIsFollowing(!isFollowing)}
                 className={
                   isFollowing
-                    ? "glass border-white/10 h-8 rounded-full px-4 text-xs font-medium"
+                    ? "glass border-border h-8 rounded-full px-4 text-xs font-medium"
                     : "bg-[#3B82F6] text-white hover:bg-[#2563EB] h-8 rounded-full px-4 text-xs font-medium shadow-lg shadow-blue-500/20"
                 }
               >
@@ -80,7 +80,7 @@ export function ProfileHeader({ user, isOwnProfile }: ProfileHeaderProps) {
               </Button>
               <Link
                 href="/chat"
-                className="inline-flex items-center justify-center h-8 gap-1.5 rounded-full glass border-white/10 px-4 text-xs font-medium text-foreground hover:bg-white/10 transition-colors"
+                className="inline-flex items-center justify-center h-8 gap-1.5 rounded-full glass border-border px-4 text-xs font-medium text-foreground hover:bg-accent transition-colors"
               >
                 <MessageSquare className="size-3.5" />
                 Message
@@ -103,7 +103,7 @@ export function ProfileHeader({ user, isOwnProfile }: ProfileHeaderProps) {
             />
             {isOwnProfile && (
               <button
-                className="absolute inset-0 flex items-center justify-center bg-zinc-900/60 rounded-full opacity-0 group-hover:opacity-100 transition-opacity focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-[#3B82F6] focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
+                className="absolute inset-0 flex items-center justify-center bg-background/60 rounded-full opacity-0 group-hover:opacity-100 transition-opacity focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-[#3B82F6] focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 aria-label="Change profile photo"
               >
                 <Camera className="size-6 text-white" />
@@ -119,7 +119,7 @@ export function ProfileHeader({ user, isOwnProfile }: ProfileHeaderProps) {
             <RankBadge rank={user.rank} className="text-xs px-3 py-1" />
           </div>
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center rounded-full bg-white/[0.06] px-3 py-0.5 text-sm text-muted-foreground font-medium">
+            <span className="inline-flex items-center rounded-full bg-muted/50 px-3 py-0.5 text-sm text-muted-foreground font-medium">
               @{user.username}
             </span>
             {user.location && (
@@ -174,7 +174,7 @@ export function ProfileHeader({ user, isOwnProfile }: ProfileHeaderProps) {
                 href={href(value)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="group/social inline-flex items-center gap-1.5 h-8 rounded-full glass px-3 text-muted-foreground hover:text-foreground hover:bg-white/[0.08] transition-colors focus-visible:ring-2 focus-visible:ring-[#3B82F6] focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
+                className="group/social inline-flex items-center gap-1.5 h-8 rounded-full glass px-3 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus-visible:ring-2 focus-visible:ring-[#3B82F6] focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 aria-label={label}
               >
                 <Icon className="size-3.5" />

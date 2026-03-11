@@ -59,11 +59,11 @@ export function Navbar() {
 
   return (
     <>
-      <nav className="fixed top-0 left-0 right-0 z-50 h-14 border-b border-white/10 bg-zinc-900/50 backdrop-blur-xl">
+      <nav className="fixed top-0 left-0 right-0 z-50 h-14 border-b border-border bg-background/50 backdrop-blur-xl">
         <div className="mx-auto flex h-full max-w-7xl items-center justify-between px-4">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-1 text-lg font-bold tracking-tight">
-            <span className="text-white">GetWired</span>
+            <span className="text-foreground">GetWired</span>
             <span className="text-[#3B82F6] text-glow">.dev</span>
           </Link>
 
@@ -73,7 +73,7 @@ export function Navbar() {
               <Link
                 key={link.href}
                 href={link.href}
-                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-white/5 hover:text-white"
+                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
               >
                 <link.icon className="size-4" />
                 {link.label}
@@ -83,7 +83,7 @@ export function Navbar() {
 
           {/* Right side */}
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-white" render={<Link href="/search" />}>
+            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground" render={<Link href="/search" />}>
               <Search className="size-4" />
             </Button>
 
@@ -135,11 +135,11 @@ function UserMenu({
       <DropdownMenuTrigger className="hidden cursor-pointer rounded-full outline-none md:block">
         <UserAvatar src={user.avatarUrl} name={user.displayName} size="md" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" sideOffset={8} className="w-56 bg-zinc-900 border border-white/10">
+      <DropdownMenuContent align="end" sideOffset={8} className="w-56 bg-card border border-border">
         <DropdownMenuLabel className="flex items-center gap-2 px-2 py-2">
           <UserAvatar src={user.avatarUrl} name={user.displayName} size="md" />
           <div className="flex flex-col">
-            <span className="text-sm font-medium text-white">{user.displayName}</span>
+            <span className="text-sm font-medium text-foreground">{user.displayName}</span>
             <span className="text-xs text-muted-foreground">@{user.username}</span>
           </div>
         </DropdownMenuLabel>
@@ -171,14 +171,14 @@ function MobileMenu() {
   return (
     <Sheet>
       <SheetTrigger className="md:hidden">
-        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-white">
+        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
           <Menu className="size-5" />
         </Button>
       </SheetTrigger>
-      <SheetContent side="left" className="w-72 border-r border-white/10 bg-zinc-950">
+      <SheetContent side="left" className="w-72 border-r border-border bg-background">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-1 text-lg font-bold">
-            <span className="text-white">GetWired</span>
+            <span className="text-foreground">GetWired</span>
             <span className="text-[#3B82F6]">.dev</span>
           </SheetTitle>
         </SheetHeader>
@@ -187,7 +187,7 @@ function MobileMenu() {
             <Link
               key={link.href}
               href={link.href}
-              className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-white/5 hover:text-white"
+              className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >
               <link.icon className="size-4" />
               {link.label}
@@ -212,9 +212,9 @@ function SwitchUserDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="border border-white/10 bg-zinc-900">
+      <DialogContent className="border border-border bg-card">
         <DialogHeader>
-          <DialogTitle className="text-white">Switch Demo User</DialogTitle>
+          <DialogTitle className="text-foreground">Switch Demo User</DialogTitle>
         </DialogHeader>
         <div className="flex flex-col gap-2 pt-2">
           {DEMO_USERS.map((u) => (
@@ -222,13 +222,13 @@ function SwitchUserDialog({
               key={u.id}
               onClick={() => onSelect(u.id)}
               className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-white/5",
+                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-accent",
                 currentUserId === u.id && "bg-[#3B82F6]/10 border border-[#3B82F6]/30"
               )}
             >
               <UserAvatar src={u.avatarUrl} name={u.displayName} size="md" />
               <div className="flex flex-col">
-                <span className="text-sm font-medium text-white">{u.displayName}</span>
+                <span className="text-sm font-medium text-foreground">{u.displayName}</span>
                 <span className="text-xs text-muted-foreground">@{u.username}</span>
               </div>
               <RankBadge rank={u.rank} className="ml-auto" />

@@ -61,7 +61,7 @@ export function NotificationBell() {
   return (
     <Popover>
       <PopoverTrigger
-        className="relative inline-flex items-center justify-center size-9 rounded-md text-muted-foreground transition-colors hover:bg-white/5 hover:text-white cursor-pointer"
+        className="relative inline-flex items-center justify-center size-9 rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground cursor-pointer"
       >
         <Bell className="size-4" />
         {unreadCount > 0 && (
@@ -73,10 +73,10 @@ export function NotificationBell() {
       <PopoverContent
         align="end"
         sideOffset={8}
-        className="w-80 bg-zinc-900 border border-white/10 p-0"
+        className="w-80 bg-card border border-border p-0"
       >
         <div className="flex items-center justify-between px-3 py-2.5">
-          <h3 className="text-sm font-semibold text-white">Notifications</h3>
+          <h3 className="text-sm font-semibold text-foreground">Notifications</h3>
           {unreadCount > 0 && (
             <button
               onClick={markAllRead}
@@ -87,7 +87,7 @@ export function NotificationBell() {
             </button>
           )}
         </div>
-        <Separator className="bg-white/5" />
+        <Separator className="bg-border" />
         <ScrollArea className="max-h-[320px] overflow-y-auto">
           {recent.length === 0 ? (
             <p className="px-3 py-6 text-center text-sm text-muted-foreground">
@@ -109,7 +109,7 @@ export function NotificationBell() {
             </div>
           )}
         </ScrollArea>
-        <Separator className="bg-white/5" />
+        <Separator className="bg-border" />
         <div className="px-3 py-2">
           <Link
             href="/notifications"

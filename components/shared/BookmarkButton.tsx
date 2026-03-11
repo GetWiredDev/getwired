@@ -62,7 +62,7 @@ export function BookmarkButton({
         "size-8 transition-colors",
         bookmarked
           ? "text-[#3B82F6] hover:text-[#3B82F6]/80"
-          : "text-muted-foreground hover:text-white",
+          : "text-muted-foreground hover:text-foreground",
         className
       )}
     >

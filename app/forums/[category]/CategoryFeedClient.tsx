@@ -47,9 +47,9 @@ export function CategoryFeedClient({ slug }: CategoryFeedClientProps) {
     <div className="mx-auto max-w-4xl px-4 py-6">
       {/* Breadcrumb */}
       <nav className="flex items-center gap-1.5 text-xs text-muted-foreground mb-4">
-        <Link href="/forums" className="hover:text-white transition-colors">Forums</Link>
+        <Link href="/forums" className="hover:text-foreground transition-colors">Forums</Link>
         <ChevronRight className="size-3" />
-        <span className="text-white">{category.name}</span>
+        <span className="text-foreground">{category.name}</span>
       </nav>
 
       {/* Category header */}
@@ -59,7 +59,7 @@ export function CategoryFeedClient({ slug }: CategoryFeedClientProps) {
             <Icon className="size-6" />
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-bold text-white">{category.name}</h1>
+            <h1 className="text-lg font-bold text-foreground">{category.name}</h1>
             <p className="text-xs text-muted-foreground mt-0.5">{category.description}</p>
           </div>
           <Badge variant="secondary" className="text-xs">{category.postCount} posts</Badge>
@@ -95,7 +95,7 @@ export function CategoryFeedClient({ slug }: CategoryFeedClientProps) {
                       <span className="text-[10px] text-muted-foreground">{formatTimeAgo(post.createdAt)}</span>
                       {post.isPinned && <Badge className="bg-[#3B82F6]/10 text-[#3B82F6] text-[9px] border-[#3B82F6]/30 px-1 py-0">📌</Badge>}
                     </div>
-                    <h3 className="text-sm font-medium text-white group-hover:text-[#3B82F6] transition-colors line-clamp-1">{post.title}</h3>
+                    <h3 className="text-sm font-medium text-foreground group-hover:text-[#3B82F6] transition-colors line-clamp-1">{post.title}</h3>
                     <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{post.content.slice(0, 150)}...</p>
                     <div className="flex items-center gap-3 mt-2">
                       {post.tags.slice(0, 3).map((tag) => (<Badge key={tag} variant="secondary" className="text-[9px] px-1.5 py-0">#{tag}</Badge>))}

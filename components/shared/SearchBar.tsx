@@ -87,7 +87,7 @@ export function SearchBar({
         placeholder={placeholder}
         autoFocus={autoFocus}
         className={cn(
-          "pl-10 pr-10 bg-white/5 border-white/10 focus-visible:border-[#3B82F6]/50 focus-visible:ring-[#3B82F6]/20",
+          "pl-10 pr-10 bg-muted/50 border-border focus-visible:border-[#3B82F6]/50 focus-visible:ring-[#3B82F6]/20",
           size === "lg" ? "h-12 text-base rounded-xl" : "h-8 text-sm"
         )}
       />
@@ -96,7 +96,7 @@ export function SearchBar({
           variant="ghost"
           size="icon-xs"
           onClick={handleClear}
-          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-white"
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
         >
           <X className="size-3.5" />
         </Button>

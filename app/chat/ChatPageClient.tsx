@@ -31,7 +31,7 @@ export function ChatPageClient() {
       {/* Mobile sidebar as Sheet */}
       <div className="md:hidden">
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-          <SheetTrigger className="fixed left-3 top-[4.25rem] z-30 inline-flex items-center justify-center size-9 rounded-lg bg-card border border-border shadow-lg text-muted-foreground hover:text-white hover:bg-muted transition-colors cursor-pointer">
+          <SheetTrigger className="fixed left-3 top-[4.25rem] z-30 inline-flex items-center justify-center size-9 rounded-lg bg-card border border-border shadow-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer">
             <Menu className="size-4" />
           </SheetTrigger>
           <SheetContent side="left" className="p-0 w-[300px]" showCloseButton={false}>

@@ -61,7 +61,7 @@ export function NewsletterClient() {
       {/* Hero */}
       <div className="mb-10 text-center">
         <Mail className="mx-auto mb-4 size-10 text-[#3B82F6]" />
-        <h1 className="text-3xl font-bold text-white md:text-4xl">
+        <h1 className="text-3xl font-bold text-foreground md:text-4xl">
           Stay <span className="text-[#3B82F6] text-glow">Wired</span>
         </h1>
         <p className="mx-auto mt-3 max-w-md text-muted-foreground">
@@ -73,20 +73,20 @@ export function NewsletterClient() {
       {subscribed ? (
         <Card className="glass border-[#3B82F6]/20 glow-green p-8 text-center mb-10">
           <CheckCircle2 className="mx-auto mb-3 size-12 text-[#3B82F6]" />
-          <h2 className="text-xl font-bold text-white mb-2">You&apos;re In! 🎉</h2>
+          <h2 className="text-xl font-bold text-foreground mb-2">You&apos;re In! 🎉</h2>
           <p className="text-muted-foreground">
             Check your inbox for a confirmation. Your first issue arrives next Monday.
           </p>
         </Card>
       ) : (
-        <Card className="glass border-white/5 p-6 mb-10">
+        <Card className="glass border-border p-6 mb-10">
           <form onSubmit={handleSubscribe} className="flex gap-3">
             <Input
               type="email"
               placeholder="your@email.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="flex-1 bg-zinc-900/40 border-white/10 focus-visible:ring-[#3B82F6]/30"
+              className="flex-1 bg-muted/50 border-border focus-visible:ring-[#3B82F6]/30"
             />
             <Button
               type="submit"
@@ -107,9 +107,9 @@ export function NewsletterClient() {
       {/* Benefits */}
       <div className="grid grid-cols-2 gap-4 mb-10 sm:grid-cols-4">
         {BENEFITS.map((b) => (
-          <Card key={b.text} className="glass border-white/5 p-4 text-center">
+          <Card key={b.text} className="glass border-border p-4 text-center">
             <b.icon className="mx-auto mb-2 size-6 text-[#3B82F6]" />
-            <p className="text-sm font-medium text-white">{b.text}</p>
+            <p className="text-sm font-medium text-foreground">{b.text}</p>
           </Card>
         ))}
       </div>
@@ -118,21 +118,21 @@ export function NewsletterClient() {
       <section>
         <div className="flex items-center gap-2 mb-4">
           <Sparkles className="size-5 text-[#3B82F6]" />
-          <h2 className="text-lg font-bold text-white">Past Issues</h2>
+          <h2 className="text-lg font-bold text-foreground">Past Issues</h2>
         </div>
         <div className="space-y-3">
           {PAST_ISSUES.map((issue) => (
-            <Card key={issue.date} className="glass border-white/5 p-4 hover:border-white/10 transition-colors">
+            <Card key={issue.date} className="glass border-border p-4 hover:border-border transition-colors">
               <div className="flex items-start gap-3">
                 <div className="rounded-md bg-[#3B82F6]/10 p-2 shrink-0">
                   <Calendar className="size-4 text-[#3B82F6]" />
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">{issue.date}</p>
-                  <h3 className="text-sm font-medium text-white">{issue.title}</h3>
+                  <h3 className="text-sm font-medium text-foreground">{issue.title}</h3>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {issue.topics.map((t) => (
-                      <Badge key={t} variant="outline" className="text-[10px] border-white/10 text-muted-foreground">
+                      <Badge key={t} variant="outline" className="text-[10px] border-border text-muted-foreground">
                         {t}
                       </Badge>
                     ))}

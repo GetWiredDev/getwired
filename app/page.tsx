@@ -95,7 +95,7 @@ export default function Home() {
 
         <div className="mt-4">
           <Tabs defaultValue="hot" onValueChange={(v) => setActiveTab(v as FeedTab)}>
-            <TabsList className="mb-4 bg-zinc-900/40 border border-white/8">
+            <TabsList className="mb-4 bg-muted/50 border border-border">
               <TabsTrigger value="hot" className="gap-1.5 data-active:text-[#3B82F6]">
                 <Flame className="size-3.5" /> Hot
               </TabsTrigger>
@@ -188,7 +188,7 @@ export default function Home() {
                     <p className="text-xs font-medium truncate">{u.name}</p>
                     <p className="text-[10px] text-muted-foreground truncate">@{u.username}</p>
                   </div>
-                  <Button variant="outline" size="xs" className="shrink-0 text-[10px] h-6 gap-1 border-white/10 hover:bg-[#3B82F6]/10 hover:text-[#3B82F6]">
+                  <Button variant="outline" size="xs" className="shrink-0 text-[10px] h-6 gap-1 border-border hover:bg-[#3B82F6]/10 hover:text-[#3B82F6]">
                     <UserPlus className="size-3" />
                     Follow
                   </Button>

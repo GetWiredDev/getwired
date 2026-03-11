@@ -30,10 +30,10 @@ export function AdminClient() {
     return (
       <main className="mx-auto max-w-lg px-4 py-20 text-center">
         <ShieldAlert className="mx-auto mb-4 size-16 text-red-400" />
-        <h1 className="text-2xl font-bold text-white mb-2">Access Denied</h1>
+        <h1 className="text-2xl font-bold text-foreground mb-2">Access Denied</h1>
         <p className="text-muted-foreground mb-6">You don&apos;t have permission to view the admin dashboard.</p>
         <Link href="/">
-          <Button variant="outline" className="border-white/10">
+          <Button variant="outline" className="border-border">
             <Home className="mr-2 size-4" /> Back to Home
           </Button>
         </Link>
@@ -45,7 +45,7 @@ export function AdminClient() {
     <main className="mx-auto max-w-6xl px-4 py-8">
       <div className="flex items-center gap-3 mb-8">
         <ShieldAlert className="size-7 text-[#3B82F6]" />
-        <h1 className="text-2xl font-bold text-white">Admin Dashboard</h1>
+        <h1 className="text-2xl font-bold text-foreground">Admin Dashboard</h1>
       </div>
       <StatsGrid />
       <ModerationQueue />
@@ -66,11 +66,11 @@ function StatsGrid() {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
       {STATS.map((s) => (
-        <Card key={s.label} className="glass border-white/5 p-5">
+        <Card key={s.label} className="glass border-border p-5">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-muted-foreground">{s.label}</p>
-              <p className="mt-1 text-2xl font-bold text-white">{s.value}</p>
+              <p className="mt-1 text-2xl font-bold text-foreground">{s.value}</p>
             </div>
             <s.icon className={`size-8 ${s.color} opacity-60`} />
           </div>
@@ -88,13 +88,13 @@ function ModerationQueue() {
 
   return (
     <section className="mb-8">
-      <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+      <h2 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
         <Flag className="size-5 text-red-400" /> Moderation Queue
       </h2>
-      <Card className="glass border-white/5 overflow-hidden">
+      <Card className="glass border-border overflow-hidden">
         <Table>
           <TableHeader>
-            <TableRow className="border-white/5 hover:bg-transparent">
+            <TableRow className="border-border hover:bg-transparent">
               <TableHead className="text-muted-foreground">Type</TableHead>
               <TableHead className="text-muted-foreground">Content Preview</TableHead>
               <TableHead className="text-muted-foreground">Author</TableHead>
@@ -114,12 +114,12 @@ function ModerationQueue() {
               logs.map((log) => {
                 const author = DATA_USERS[log.authorIndex];
                 return (
-                  <TableRow key={log._idx} className="border-white/5">
+                  <TableRow key={log._idx} className="border-border">
                     <TableCell>
-                      <Badge variant="outline" className="text-xs border-white/10 capitalize">{log.contentType}</Badge>
+                      <Badge variant="outline" className="text-xs border-border capitalize">{log.contentType}</Badge>
                     </TableCell>
                     <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">{log.reason}</TableCell>
-                    <TableCell className="text-sm text-white">{author?.name ?? "Unknown"}</TableCell>
+                    <TableCell className="text-sm text-foreground">{author?.name ?? "Unknown"}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">{log.reason}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">{fmtDate(log.createdAt)}</TableCell>
                     <TableCell className="text-right">
@@ -128,7 +128,7 @@ function ModerationQueue() {
                           onClick={() => { toast.success("Content approved"); setDismissed((s) => new Set(s).add(log._idx)); }}>
                           <CheckCircle2 className="mr-1 size-3" /> Approve
                         </Button>
-                        <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground hover:text-white"
+                        <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground hover:text-foreground"
                           onClick={() => { toast.info("Report dismissed"); setDismissed((s) => new Set(s).add(log._idx)); }}>
                           <XCircle className="mr-1 size-3" /> Dismiss
                         </Button>
@@ -150,13 +150,13 @@ function ModerationQueue() {
 function RecentUsers() {
   return (
     <section className="mb-8">
-      <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+      <h2 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
         <Users className="size-5 text-blue-400" /> Recent Users
       </h2>
-      <Card className="glass border-white/5 overflow-hidden">
+      <Card className="glass border-border overflow-hidden">
         <Table>
           <TableHeader>
-            <TableRow className="border-white/5 hover:bg-transparent">
+            <TableRow className="border-border hover:bg-transparent">
               <TableHead className="text-muted-foreground">User</TableHead>
               <TableHead className="text-muted-foreground">Username</TableHead>
               <TableHead className="text-muted-foreground">Rank</TableHead>
@@ -169,22 +169,22 @@ function RecentUsers() {
             {DATA_USERS.map((u, i) => {
               const rankInfo = RANKS[u.rank];
               return (
-                <TableRow key={i} className="border-white/5">
+                <TableRow key={i} className="border-border">
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <UserAvatar src={u.avatar} name={u.name} size="sm" />
-                      <span className="text-sm font-medium text-white">{u.name}</span>
+                      <span className="text-sm font-medium text-foreground">{u.name}</span>
                     </div>
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">@{u.username}</TableCell>
                   <TableCell>
-                    <Badge variant="outline" className="text-xs border-white/10" style={{ color: rankInfo?.color }}>
+                    <Badge variant="outline" className="text-xs border-border" style={{ color: rankInfo?.color }}>
                       {rankInfo?.label ?? u.rank}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-sm text-[#3B82F6]">{u.karma.toLocaleString()}</TableCell>
                   <TableCell>
-                    <Badge variant="outline" className={`text-xs capitalize ${u.role === "moderator" ? "border-red-400/30 text-red-400" : "border-white/10 text-muted-foreground"}`}>
+                    <Badge variant="outline" className={`text-xs capitalize ${u.role === "moderator" ? "border-red-400/30 text-red-400" : "border-border text-muted-foreground"}`}>
                       {u.role}
                     </Badge>
                   </TableCell>
@@ -203,20 +203,20 @@ function ContentReports() {
   const logs = DEMO_MODERATION_LOGS.filter((l) => l.action !== "flagged");
   return (
     <section>
-      <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+      <h2 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
         <FileText className="size-5 text-purple-400" /> Content Reports
       </h2>
       <div className="space-y-2">
         {logs.map((log, i) => {
           const author = DATA_USERS[log.authorIndex];
           return (
-            <Card key={i} className="glass border-white/5 p-4">
+            <Card key={i} className="glass border-border p-4">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-3">
                   <Badge variant="outline" className={`text-xs capitalize ${log.action === "approved" ? "border-blue-400/30 text-blue-400" : "border-red-400/30 text-red-400"}`}>
                     {log.action}
                   </Badge>
-                  <span className="text-sm text-white">{log.contentType}</span>
+                  <span className="text-sm text-foreground">{log.contentType}</span>
                   <span className="text-sm text-muted-foreground">by {author?.name ?? "Unknown"}</span>
                 </div>
                 <div className="flex items-center gap-3 text-xs text-muted-foreground">
