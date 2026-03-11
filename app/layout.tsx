@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { GeistSans } from "geist/font/sans";
+import { GeistMono } from "geist/font/mono";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { DemoAuthProvider } from "@/lib/demo-auth";
@@ -7,15 +8,7 @@ import { WindowManagerProvider } from "@/components/desktop/WindowManager";
 import { Desktop } from "@/components/desktop/Desktop";
 import "./globals.css";
 
-const inter = Inter({
-  variable: "--font-sans",
-  subsets: ["latin"],
-});
 
-const jetbrainsMono = JetBrains_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   title: {
@@ -57,7 +50,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body
-        className={`${inter.variable} ${jetbrainsMono.variable} antialiased min-h-screen bg-background text-foreground overflow-hidden`}
+        className={`${GeistSans.variable} ${GeistMono.variable} antialiased min-h-screen bg-background text-foreground overflow-hidden`}
       >
         <DemoAuthProvider>
           <TooltipProvider>
