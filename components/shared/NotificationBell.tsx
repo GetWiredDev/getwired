@@ -65,7 +65,7 @@ export function NotificationBell() {
       >
         <Bell className="size-4" />
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full bg-[#00FF41] text-[9px] font-bold text-black">
+          <span className="absolute -top-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full bg-[#3B82F6] text-[9px] font-bold text-white">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
@@ -73,14 +73,14 @@ export function NotificationBell() {
       <PopoverContent
         align="end"
         sideOffset={8}
-        className="w-80 bg-[#111] border border-green-500/20 p-0"
+        className="w-80 bg-zinc-900 border border-white/10 p-0"
       >
         <div className="flex items-center justify-between px-3 py-2.5">
           <h3 className="text-sm font-semibold text-white">Notifications</h3>
           {unreadCount > 0 && (
             <button
               onClick={markAllRead}
-              className="flex items-center gap-1 text-xs text-[#00FF41] hover:underline cursor-pointer"
+              className="flex items-center gap-1 text-xs text-[#3B82F6] hover:underline cursor-pointer"
             >
               <CheckCheck className="size-3" />
               Mark all read
@@ -113,7 +113,7 @@ export function NotificationBell() {
         <div className="px-3 py-2">
           <Link
             href="/notifications"
-            className="block text-center text-xs text-[#00FF41] hover:underline"
+            className="block text-center text-xs text-[#3B82F6] hover:underline"
           >
             View all notifications
           </Link>

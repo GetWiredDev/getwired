@@ -44,7 +44,7 @@ export function AdminClient() {
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">
       <div className="flex items-center gap-3 mb-8">
-        <ShieldAlert className="size-7 text-[#00FF41]" />
+        <ShieldAlert className="size-7 text-[#3B82F6]" />
         <h1 className="text-2xl font-bold text-white">Admin Dashboard</h1>
       </div>
       <StatsGrid />
@@ -58,7 +58,7 @@ export function AdminClient() {
 const STATS = [
   { label: "Total Users", value: DATA_USERS.length.toString(), icon: Users, color: "text-blue-400" },
   { label: "Total Posts", value: DEMO_POSTS.length.toString(), icon: FileText, color: "text-purple-400" },
-  { label: "Active Today", value: "142", icon: Activity, color: "text-[#00FF41]" },
+  { label: "Active Today", value: "142", icon: Activity, color: "text-[#3B82F6]" },
   { label: "Flagged Content", value: DEMO_MODERATION_LOGS.filter((l) => l.action === "flagged").length.toString(), icon: Flag, color: "text-red-400" },
 ];
 
@@ -124,7 +124,7 @@ function ModerationQueue() {
                     <TableCell className="text-sm text-muted-foreground">{fmtDate(log.createdAt)}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <Button size="sm" variant="ghost" className="h-7 text-xs text-green-400 hover:text-green-300"
+                        <Button size="sm" variant="ghost" className="h-7 text-xs text-blue-400 hover:text-blue-300"
                           onClick={() => { toast.success("Content approved"); setDismissed((s) => new Set(s).add(log._idx)); }}>
                           <CheckCircle2 className="mr-1 size-3" /> Approve
                         </Button>
@@ -182,7 +182,7 @@ function RecentUsers() {
                       {rankInfo?.label ?? u.rank}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-sm text-[#00FF41]">{u.karma.toLocaleString()}</TableCell>
+                  <TableCell className="text-sm text-[#3B82F6]">{u.karma.toLocaleString()}</TableCell>
                   <TableCell>
                     <Badge variant="outline" className={`text-xs capitalize ${u.role === "moderator" ? "border-red-400/30 text-red-400" : "border-white/10 text-muted-foreground"}`}>
                       {u.role}
@@ -213,7 +213,7 @@ function ContentReports() {
             <Card key={i} className="glass border-white/5 p-4">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-3">
-                  <Badge variant="outline" className={`text-xs capitalize ${log.action === "approved" ? "border-green-400/30 text-green-400" : "border-red-400/30 text-red-400"}`}>
+                  <Badge variant="outline" className={`text-xs capitalize ${log.action === "approved" ? "border-blue-400/30 text-blue-400" : "border-red-400/30 text-red-400"}`}>
                     {log.action}
                   </Badge>
                   <span className="text-sm text-white">{log.contentType}</span>

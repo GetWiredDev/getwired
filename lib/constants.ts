@@ -2,19 +2,19 @@ import type { RankInfo } from "./types";
 
 // Theme colors
 export const THEME = {
-  primary: "#00FF41",       // Electric green
-  primaryDim: "#00CC33",
-  background: "#0A0A0A",   // Deep black
-  surface: "#111111",
-  surfaceHover: "#1A1A1A",
-  border: "#222222",
-  text: "#E0E0E0",
-  textMuted: "#888888",
-  accent: "#00FF41",
-  danger: "#FF4444",
-  warning: "#FFB800",
-  success: "#00FF41",
-  info: "#00BFFF",
+  primary: "#3B82F6",       // Blue-500
+  primaryDim: "#2563EB",
+  background: "#09090B",   // Zinc-950
+  surface: "#18181B",
+  surfaceHover: "#27272A",
+  border: "#3F3F46",
+  text: "#FAFAFA",
+  textMuted: "#A1A1AA",
+  accent: "#3B82F6",
+  danger: "#EF4444",
+  warning: "#F59E0B",
+  success: "#22C55E",
+  info: "#06B6D4",
 } as const;
 
 // Rank definitions
@@ -37,7 +37,7 @@ export const RANKS: Record<string, RankInfo> = {
     name: "contributor",
     label: "Contributor",
     minKarma: 500,
-    color: "#00FF41",
+    color: "#3B82F6",
     icon: "Code2",
   },
   expert: {
