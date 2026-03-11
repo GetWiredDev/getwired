@@ -1,8 +1,10 @@
 "use client";
 
+import { useState, useEffect, useMemo } from "react";
 import {
   Rss, MessageSquare, MessagesSquare, Newspaper, Compass,
   ShoppingBag, User, Bookmark, Bell, Search, Shield, Mail,
+  ChevronLeft, ChevronRight,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -13,14 +15,45 @@ const ICON_MAP: Record<string, LucideIcon> = {
   ShoppingBag, User, Bookmark, Bell, Search, Shield, Mail,
 };
 
-// Which apps to show in the dock (and in what order)
+// Which apps to show in the sidebar (and in what order)
 const DOCK_APP_IDS = [
   "feed", "forums", "chat", "news", "discover",
   "marketplace", "profile", "bookmarks", "notifications", "search",
 ];
 
-export function Dock() {
+export const SIDEBAR_WIDTH_EXPANDED = 220;
+export const SIDEBAR_WIDTH_COLLAPSED = 60;
+
+const STORAGE_KEY = "getwired-sidebar-expanded";
+
+export function Sidebar() {
   const { state, openWindow, focusWindow, restoreWindow } = useWindowManager();
+  const [expanded, setExpanded] = useState(true);
+  const [mounted, setMounted] = useState(false);
+
+  // Read localStorage after mount (SSR-safe)
+  useEffect(() => {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored !== null) {
+      setExpanded(stored === "true");
+    }
+    setMounted(true);
+  }, []);
+
+  function toggleExpanded() {
+    setExpanded((prev) => {
+      const next = !prev;
+      localStorage.setItem(STORAGE_KEY, String(next));
+      return next;
+    });
+  }
+
+  // Determine the focused (topmost) window
+  const focusedWindowId = useMemo(() => {
+    if (state.windows.length === 0) return null;
+    const maxZ = Math.max(...state.windows.map((w) => w.zIndex));
+    return state.windows.find((w) => w.zIndex === maxZ)?.id ?? null;
+  }, [state.windows]);
 
   function handleClick(appId: string) {
     const existing = state.windows.find((w) => w.appId === appId);
@@ -35,35 +68,98 @@ export function Dock() {
     }
   }
 
+  const sidebarWidth = expanded ? SIDEBAR_WIDTH_EXPANDED : SIDEBAR_WIDTH_COLLAPSED;
+
   return (
-    <div className="fixed inset-x-0 bottom-0 z-[9999] flex items-end justify-center pb-2" style={{ height: 72 }}>
-      <div className="flex items-center gap-1 rounded-2xl border border-white/[0.1] bg-zinc-900/80 px-2 py-1.5 backdrop-blur-xl">
+    <div
+      className="relative z-[9999] flex flex-col shrink-0 bg-zinc-950/90 backdrop-blur-xl border-r border-white/[0.06] transition-all duration-300 ease-in-out h-screen"
+      style={{ width: mounted ? sidebarWidth : SIDEBAR_WIDTH_EXPANDED }}
+    >
+      {/* Top: Logo */}
+      <div className="flex items-center h-14 px-4 shrink-0">
+        {expanded ? (
+          <div className="flex items-center gap-1 text-sm font-semibold leading-none">
+            <span className="text-white">GetWired</span>
+            <span className="text-[#3B82F6]">.dev</span>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center w-full">
+            <span className="text-sm font-bold text-white">G</span>
+          </div>
+        )}
+      </div>
+
+      {/* Middle: App list (scrollable) */}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-1">
         {DOCK_APP_IDS.map((appId) => {
           const app = APP_REGISTRY[appId];
           if (!app) return null;
           const Icon = ICON_MAP[app.icon] ?? Search;
-          const isRunning = state.windows.some((w) => w.appId === appId);
+          const runningWindow = state.windows.find((w) => w.appId === appId);
+          const isRunning = !!runningWindow;
+          const isFocused = runningWindow?.id === focusedWindowId;
 
           return (
             <button
               key={appId}
               onClick={() => handleClick(appId)}
               className={cn(
-                "group relative flex flex-col items-center justify-center rounded-xl p-1.5 transition-transform duration-150 hover:scale-110",
+                "group relative flex items-center w-full rounded-lg transition-colors duration-150",
+                expanded ? "gap-3 px-3 py-2" : "justify-center px-0 py-2",
                 "hover:bg-white/[0.06]",
+                isRunning && "border-l-2 border-blue-500",
+                !isRunning && "border-l-2 border-transparent",
               )}
               title={app.title}
             >
-              <div className="flex size-[44px] items-center justify-center">
-                <Icon className="size-6 text-zinc-300 group-hover:text-white transition-colors" />
-              </div>
-              {/* Running indicator dot */}
-              {isRunning && (
-                <span className="absolute -bottom-0.5 size-1 rounded-full bg-white/70" />
+              <Icon
+                className={cn(
+                  "size-5 shrink-0 transition-colors",
+                  isFocused
+                    ? "text-white"
+                    : isRunning
+                      ? "text-zinc-300"
+                      : "text-zinc-500 group-hover:text-zinc-300",
+                )}
+              />
+              {expanded && (
+                <span
+                  className={cn(
+                    "text-sm truncate transition-colors",
+                    isFocused
+                      ? "text-white font-medium"
+                      : isRunning
+                        ? "text-zinc-300"
+                        : "text-zinc-500 group-hover:text-zinc-300",
+                  )}
+                >
+                  {app.title}
+                </span>
               )}
             </button>
           );
         })}
+      </div>
+
+      {/* Bottom: Toggle button */}
+      <div className="shrink-0 border-t border-white/[0.06] px-2 py-2">
+        <button
+          onClick={toggleExpanded}
+          className={cn(
+            "flex items-center w-full rounded-lg py-2 transition-colors duration-150 hover:bg-white/[0.06]",
+            expanded ? "px-3 gap-3" : "justify-center",
+          )}
+          title={expanded ? "Collapse sidebar" : "Expand sidebar"}
+        >
+          {expanded ? (
+            <>
+              <ChevronLeft className="size-5 text-zinc-500" />
+              <span className="text-sm text-zinc-500">Collapse</span>
+            </>
+          ) : (
+            <ChevronRight className="size-5 text-zinc-500" />
+          )}
+        </button>
       </div>
     </div>
   );

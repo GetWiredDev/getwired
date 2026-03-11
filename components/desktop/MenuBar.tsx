@@ -27,15 +27,9 @@ export function MenuBar() {
 
   return (
     <div
-      className="fixed inset-x-0 top-0 z-[9999] flex h-7 items-center justify-between border-b border-white/[0.06] bg-zinc-950/80 px-4 backdrop-blur-xl"
+      className="relative z-[9998] flex h-7 shrink-0 items-center justify-end border-b border-white/[0.06] bg-zinc-950/80 px-4 backdrop-blur-xl"
       style={{ height: 28 }}
     >
-      {/* Left: Logo */}
-      <div className="flex items-center gap-1 text-sm font-semibold leading-none">
-        <span className="text-white">GetWired</span>
-        <span className="text-[#3B82F6]">.dev</span>
-      </div>
-
       {/* Right: Time + Avatar */}
       <div className="flex items-center gap-3">
         <span className="text-xs text-zinc-400">{time}</span>

@@ -13,8 +13,9 @@ interface AppWindowProps {
   children: React.ReactNode;
 }
 
-// Desktop area insets (menubar top, dock bottom)
-const DESKTOP_INSET = { top: 28, bottom: 72 };
+// Desktop area insets — windows live inside a container that's already
+// below the MenuBar and beside the sidebar, so no insets needed.
+const DESKTOP_INSET = { top: 0, bottom: 0 };
 
 export function AppWindow({ windowState, children }: AppWindowProps) {
   const {
