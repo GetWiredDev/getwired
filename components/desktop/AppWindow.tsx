@@ -5,6 +5,7 @@ import { Rnd } from "react-rnd";
 import type { RndDragEvent, DraggableData } from "react-rnd";
 import { cn } from "@/lib/utils";
 import { useWindowManager } from "./useWindowManager";
+import { useLinkInterceptor } from "./useLinkInterceptor";
 import { WindowTitleBar } from "./WindowTitleBar";
 import type { WindowState } from "./types";
 
@@ -33,6 +34,7 @@ export function AppWindow({ windowState, children }: AppWindowProps) {
 
   const [refreshKey, setRefreshKey] = useState(0);
   const onRefresh = useCallback(() => setRefreshKey((k) => k + 1), []);
+  const handleLinkClick = useLinkInterceptor();
 
   // Determine if this window is the topmost (focused)
   const isFocused = useMemo(() => {
@@ -118,7 +120,7 @@ export function AppWindow({ windowState, children }: AppWindowProps) {
           onRestore={() => restoreWindow(id)}
           onRefresh={onRefresh}
         />
-        <div className="flex-1 overflow-auto" key={refreshKey}>
+        <div className="flex-1 overflow-auto" key={refreshKey} onClick={handleLinkClick}>
           {children}
         </div>
       </div>
