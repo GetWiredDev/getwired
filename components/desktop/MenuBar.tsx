@@ -24,7 +24,6 @@ function useCurrentTime() {
   return time;
 }
 
-const MENU_ITEMS = ["File", "Edit", "View", "Window", "Help"] as const;
 
 export function MenuBar() {
   const { user } = useDemoAuth();
@@ -49,33 +48,29 @@ export function MenuBar() {
         <button className="rounded px-2 py-0.5 text-[13px] font-semibold text-white hover:bg-white/[0.08]">
           {focusedAppName}
         </button>
-        {MENU_ITEMS.map((item) => (
-          <button
-            key={item}
-            className="rounded px-2 py-0.5 text-[13px] font-medium text-zinc-300 hover:bg-white/[0.08]"
-          >
-            {item}
-          </button>
-        ))}
+
       </div>
 
       {/* Right: System tray */}
       <div className="flex items-center gap-3">
         <Wifi className="size-3.5 text-zinc-400 hover:text-zinc-200" />
         <BatteryFull className="size-3.5 text-zinc-400 hover:text-zinc-200" />
-        <button onClick={() => openWindow("notifications")} className="flex items-center">
+        <button onClick={() => openWindow("notifications")} className="relative flex items-center">
           <Bell className="size-3.5 text-zinc-400 hover:text-zinc-200" />
+          <span className="absolute -top-1 -right-1 flex size-3 items-center justify-center rounded-full bg-red-500 text-[8px] font-bold text-white">3</span>
         </button>
         <button onClick={() => openWindow("search")} className="flex items-center">
           <Search className="size-3.5 text-zinc-400 hover:text-zinc-200" />
         </button>
         <span className="text-xs text-zinc-400">{time}</span>
         {user && (
-          <UserAvatar
-            src={user.avatarUrl}
-            name={user.displayName}
-            size="sm"
-          />
+          <button onClick={() => openWindow("profile")} className="flex items-center">
+            <UserAvatar
+              src={user.avatarUrl}
+              name={user.displayName}
+              size="sm"
+            />
+          </button>
         )}
       </div>
     </div>
