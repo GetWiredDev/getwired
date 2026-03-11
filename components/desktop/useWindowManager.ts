@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useReducer, useCallback } from "react";
+import { createContext, useContext, useReducer, useCallback, useEffect } from "react";
 import type {
   WindowState,
   WindowManagerState,
@@ -27,6 +27,36 @@ export const APP_REGISTRY: Record<string, AppRegistryEntry> = {
   admin: { id: "admin", title: "Admin", icon: "Shield", defaultSize: { width: 800, height: 600 } },
   newsletter: { id: "newsletter", title: "Newsletter", icon: "Mail", defaultSize: { width: 600, height: 500 } },
 };
+
+// ── LocalStorage Persistence ─────────────────────────────────────────────────
+
+const STORAGE_KEY = "getwired-desktop-layout";
+
+function saveToLocalStorage(state: WindowManagerState): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // Silently fail (e.g. quota exceeded, SSR)
+  }
+}
+
+function loadFromLocalStorage(): WindowManagerState | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed.windows || !Array.isArray(parsed.windows)) return null;
+    const validWindows = parsed.windows.filter(
+      (w: any) => w.id && w.appId && APP_REGISTRY[w.appId],
+    );
+    return {
+      windows: validWindows,
+      nextZIndex: parsed.nextZIndex || validWindows.length + 1,
+    };
+  } catch {
+    return null;
+  }
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -139,6 +169,9 @@ function windowManagerReducer(
         ),
       };
 
+    case "RESTORE_STATE":
+      return action.state;
+
     default:
       return state;
   }
@@ -162,6 +195,20 @@ export function useWindowManager(): WindowManagerContextValue {
 
 export function useWindowManagerProvider(): WindowManagerContextValue {
   const [state, dispatch] = useReducer(windowManagerReducer, initialState);
+
+  // Restore state from localStorage on mount (SSR-safe)
+  useEffect(() => {
+    const saved = loadFromLocalStorage();
+    if (saved && saved.windows.length > 0) {
+      dispatch({ type: "RESTORE_STATE", state: saved });
+    }
+  }, []);
+
+  // Debounce-save state to localStorage on every change
+  useEffect(() => {
+    const timer = setTimeout(() => saveToLocalStorage(state), 500);
+    return () => clearTimeout(timer);
+  }, [state]);
 
   const openWindow = useCallback(
     (appId: string, title?: string) => dispatch({ type: "OPEN_WINDOW", appId, title }),

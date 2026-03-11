@@ -37,7 +37,8 @@ export type WindowManagerAction =
   | { type: "RESTORE_WINDOW"; windowId: string }
   | { type: "FOCUS_WINDOW"; windowId: string }
   | { type: "UPDATE_POSITION"; windowId: string; position: WindowPosition }
-  | { type: "UPDATE_SIZE"; windowId: string; size: WindowSize };
+  | { type: "UPDATE_SIZE"; windowId: string; size: WindowSize }
+  | { type: "RESTORE_STATE"; state: WindowManagerState };
 
 export interface WindowManagerState {
   windows: WindowState[];
