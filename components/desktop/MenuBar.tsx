@@ -27,7 +27,7 @@ export function MenuBar() {
 
   return (
     <div
-      className="relative z-[9998] flex h-7 shrink-0 items-center justify-end border-b border-white/[0.06] bg-zinc-950/80 px-4 backdrop-blur-xl"
+      className="absolute inset-x-0 top-0 z-[9998] flex h-7 items-center justify-end border-b border-white/[0.06] bg-zinc-950/80 px-4 backdrop-blur-xl"
       style={{ height: 28 }}
     >
       {/* Right: Time + Avatar */}

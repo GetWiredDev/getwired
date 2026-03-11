@@ -72,7 +72,7 @@ export function Sidebar() {
 
   return (
     <div
-      className="relative z-[9999] flex flex-col shrink-0 bg-zinc-950/90 backdrop-blur-xl border-r border-white/[0.06] transition-all duration-300 ease-in-out h-screen"
+      className="absolute top-3 left-3 z-[9999] flex flex-col bg-zinc-950/80 backdrop-blur-xl border border-white/[0.08] rounded-2xl transition-all duration-300 ease-in-out shadow-2xl"
       style={{ width: mounted ? sidebarWidth : SIDEBAR_WIDTH_EXPANDED }}
     >
       {/* Top: Logo */}
@@ -90,7 +90,7 @@ export function Sidebar() {
       </div>
 
       {/* Middle: App list (scrollable) */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-1">
+      <div className="overflow-y-auto overflow-x-hidden px-2 py-1 max-h-[60vh]">
         {DOCK_APP_IDS.map((appId) => {
           const app = APP_REGISTRY[appId];
           if (!app) return null;
@@ -142,7 +142,7 @@ export function Sidebar() {
       </div>
 
       {/* Bottom: Toggle button */}
-      <div className="shrink-0 border-t border-white/[0.06] px-2 py-2">
+      <div className="shrink-0 px-2 py-2">
         <button
           onClick={toggleExpanded}
           className={cn(

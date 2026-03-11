@@ -10,23 +10,20 @@ export function Desktop() {
   const { state } = useWindowManager();
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950">
-      {/* Left sidebar */}
+    <div className="relative h-screen overflow-hidden bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950">
+      {/* Floating sidebar (absolutely positioned) */}
       <Sidebar />
 
-      {/* Desktop area (takes remaining width) */}
-      <div className="flex-1 relative flex flex-col min-w-0">
-        {/* Top menu bar */}
-        <MenuBar />
+      {/* Top menu bar */}
+      <MenuBar />
 
-        {/* Windows area */}
-        <div className="flex-1 relative">
-          {state.windows.map((win) => (
-            <AppWindow key={win.id} windowState={win}>
-              <AppContent appId={win.appId} title={win.title} />
-            </AppWindow>
-          ))}
-        </div>
+      {/* Windows area (full width, below menu bar) */}
+      <div className="absolute inset-0 top-7">
+        {state.windows.map((win) => (
+          <AppWindow key={win.id} windowState={win}>
+            <AppContent appId={win.appId} title={win.title} />
+          </AppWindow>
+        ))}
       </div>
     </div>
   );
