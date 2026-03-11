@@ -68,10 +68,16 @@ export function AppWindow({ windowState, children }: AppWindowProps) {
     focusWindow(id);
   }, [id, focusWindow]);
 
-  // When maximized, fill the desktop area
-  const rndPosition = isMaximized ? { x: 0, y: DESKTOP_INSET.top } : position;
+  // When maximized, fill the desktop area with a small margin (macOS-style)
+  const MAXIMIZE_PADDING = 8; // px gap around the maximized window
+  const rndPosition = isMaximized
+    ? { x: MAXIMIZE_PADDING, y: DESKTOP_INSET.top + MAXIMIZE_PADDING }
+    : position;
   const rndSize = isMaximized
-    ? { width: "100%", height: `calc(100vh - ${DESKTOP_INSET.top + DESKTOP_INSET.bottom}px)` }
+    ? {
+        width: `calc(100% - ${MAXIMIZE_PADDING * 2}px)`,
+        height: `calc(100% - ${DESKTOP_INSET.top + DESKTOP_INSET.bottom + MAXIMIZE_PADDING * 2}px)`,
+      }
     : size;
 
   return (

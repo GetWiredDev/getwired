@@ -125,9 +125,9 @@ export function Sidebar() {
               {expanded && (
                 <span
                   className={cn(
-                    "text-sm truncate transition-colors",
+                    "text-sm font-semibold truncate transition-colors",
                     isFocused
-                      ? "text-white font-medium"
+                      ? "text-white"
                       : isRunning
                         ? "text-zinc-300"
                         : "text-zinc-500 group-hover:text-zinc-300",
