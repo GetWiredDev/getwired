@@ -125,9 +125,9 @@ export function PostCard({ post, postIndex, liked, bookmarked, likeCount, onLike
         </Button>
         <span className="text-xs text-muted-foreground mr-2">{likeCount}</span>
 
-        <Button variant="ghost" size="icon-xs" className="text-muted-foreground hover:text-foreground" render={<Link href={postUrl} />}>
+        <Link href={postUrl} className="inline-flex items-center justify-center size-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
           <MessageCircle className="size-3.5" />
-        </Button>
+        </Link>
         <span className="text-xs text-muted-foreground mr-2">{post.commentCount}</span>
 
         <Eye className="size-3.5 text-muted-foreground" />
