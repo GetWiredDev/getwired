@@ -90,6 +90,15 @@ export default defineSchema({
     .index("by_createdAt", ["createdAt"])
     .index("by_likes", ["likes"]),
 
+  postLikes: defineTable({
+    userId: v.id("users"),
+    postId: v.id("posts"),
+    createdAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_post", ["postId"])
+    .index("by_user_post", ["userId", "postId"]),
+
   comments: defineTable({
     postId: v.id("posts"),
     authorId: v.id("users"),
@@ -219,7 +228,8 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_user", ["userId"])
-    .index("by_target", ["targetId"]),
+    .index("by_target", ["targetId"])
+    .index("by_user_target", ["userId", "targetId"]),
 
   follows: defineTable({
     followerId: v.id("users"),

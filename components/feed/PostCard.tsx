@@ -4,7 +4,6 @@
 import Link from "next/link";
 import { Heart, MessageCircle, Eye, Bookmark, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { UserAvatar } from "@/components/shared/Avatar";
 import { RankBadge } from "@/components/shared/Badge";
 import { ShareButtons } from "@/components/shared/ShareButtons";
@@ -56,13 +55,11 @@ export function PostCard({ post, liked, bookmarked, likeCount, onLike, onBookmar
         </div>
       </div>
 
-      <Link href={postUrl} className="mb-2 block transition-colors group-hover:text-[#3B82F6]">
-        <h3 className="text-base font-semibold leading-snug">{post.title}</h3>
+      <Link href={postUrl} className="mb-3 block">
+        <p className="line-clamp-4 text-sm leading-relaxed text-muted-foreground group-hover:text-foreground transition-colors">
+          {contentPreview}
+        </p>
       </Link>
-
-      <p className="mb-3 line-clamp-3 text-sm leading-relaxed text-muted-foreground">
-        {contentPreview}
-      </p>
 
       {post.poll && (
         <div className="mb-3">
@@ -70,21 +67,11 @@ export function PostCard({ post, liked, bookmarked, likeCount, onLike, onBookmar
         </div>
       )}
 
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        {post.categoryInfo && (
-          <Badge
-            variant="outline"
-            className="border-transparent text-[10px]"
-            style={{
-              backgroundColor: `${post.categoryInfo.color}20`,
-              color: post.categoryInfo.color,
-            }}
-          >
-            {post.categoryInfo.name}
-          </Badge>
-        )}
-        <TagList tags={post.tags.slice(0, 3)} size="sm" />
-      </div>
+      {post.tags.length > 0 && (
+        <div className="mb-3">
+          <TagList tags={post.tags.slice(0, 3)} size="sm" />
+        </div>
+      )}
 
       <div className="-ml-1 flex items-center gap-1">
         <Button

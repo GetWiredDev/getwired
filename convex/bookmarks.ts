@@ -125,6 +125,65 @@ export const getDetailedForCurrentUser = query({
   },
 });
 
+export const toggleBookmark = mutation({
+  args: {
+    targetId: v.string(),
+    targetType: v.union(
+      v.literal("post"),
+      v.literal("news"),
+      v.literal("user"),
+      v.literal("category"),
+      v.literal("tag"),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const currentUser = await requireCurrentUser(ctx);
+
+    const existing = await ctx.db
+      .query("bookmarks")
+      .withIndex("by_user_target", (q) =>
+        q.eq("userId", currentUser._id).eq("targetId", args.targetId),
+      )
+      .first();
+
+    if (existing) {
+      await ctx.db.delete(existing._id);
+      return { bookmarked: false };
+    } else {
+      await ctx.db.insert("bookmarks", {
+        userId: currentUser._id,
+        targetId: args.targetId,
+        targetType: args.targetType,
+        createdAt: Date.now(),
+      });
+      return { bookmarked: true };
+    }
+  },
+});
+
+export const getBookmarkedPostIds = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .first();
+    if (!user) return [];
+
+    const bookmarks = await ctx.db
+      .query("bookmarks")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .collect();
+
+    return bookmarks
+      .filter((b) => b.targetType === "post")
+      .map((b) => b.targetId);
+  },
+});
+
 export const removeForCurrentUser = mutation({
   args: { bookmarkId: v.id("bookmarks") },
   handler: async (ctx, args) => {

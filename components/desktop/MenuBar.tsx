@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Wifi, BatteryFull, Bell, Search, Sun, Moon } from "lucide-react";
+import { Wifi, BatteryFull, Bell, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UserAvatar } from "@/components/shared/Avatar";
 import { useAppAuth } from "@/lib/auth";
@@ -31,24 +31,6 @@ export function MenuBar() {
   const { user, signIn } = useAppAuth();
   const time = useCurrentTime();
   const { state, openWindow } = useWindowManager();
-  const [isDark, setIsDark] = useState(() => {
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("getwired-theme");
-      return stored ? stored === "dark" : true;
-    }
-    return true;
-  });
-
-  useEffect(() => {
-    if (isDark) {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-
-    localStorage.setItem("getwired-theme", isDark ? "dark" : "light");
-  }, [isDark]);
-
   const focusedAppName = useMemo(() => {
     const visible = state.windows.filter((windowState) => !windowState.isMinimized);
     if (visible.length === 0) {
@@ -71,13 +53,6 @@ export function MenuBar() {
       </div>
 
       <div className="flex items-center gap-3">
-        <button onClick={() => setIsDark((value) => !value)} className="flex items-center">
-          {isDark ? (
-            <Moon className="size-3.5 text-zinc-400 hover:text-zinc-200" />
-          ) : (
-            <Sun className="size-3.5 text-zinc-400 hover:text-zinc-200" />
-          )}
-        </button>
         <Wifi className="size-3.5 text-zinc-400 hover:text-zinc-200" />
         <BatteryFull className="size-3.5 text-zinc-400 hover:text-zinc-200" />
         <button onClick={() => openWindow("notifications")} className="relative flex items-center">

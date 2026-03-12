@@ -1,18 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation } from "convex/react";
 import { LogIn, PenLine, X, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@/components/ui/select";
 import { UserAvatar } from "@/components/shared/Avatar";
 import { useAppAuth } from "@/lib/auth";
 import { toast } from "sonner";
@@ -20,13 +13,11 @@ import { api } from "../../convex/_generated/api";
 
 export function PostComposer() {
   const { user, isSignedIn, signIn } = useAppAuth();
-  const categories = useQuery(api.forums.listCategories, {}) ?? [];
   const createPost = useMutation(api.posts.create);
   const [expanded, setExpanded] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
-  const [category, setCategory] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
 
   if (!isSignedIn || !user) {
@@ -44,29 +35,33 @@ export function PostComposer() {
   }
 
   const handleSubmit = async () => {
-    if (!title.trim() || !content.trim()) {
-      toast.error("Title and content are required");
+    if (!content.trim()) {
+      toast.error("Write something before posting");
       return;
     }
 
-    const tags = tagInput
-      .split(",")
-      .map((tag) => tag.trim().toLowerCase())
-      .filter(Boolean);
+    // Flush any remaining text in the input as a final tag
+    const finalTags = [...tags];
+    const leftover = tagInput.trim().toLowerCase();
+    if (leftover && !finalTags.includes(leftover)) {
+      finalTags.push(leftover);
+    }
+
+    // Auto-generate a title from the first line / first ~60 chars of content
+    const firstLine = content.trim().split("\n")[0] ?? "";
+    const autoTitle = firstLine.slice(0, 60) || "Untitled";
 
     setSubmitting(true);
     try {
       await createPost({
-        title: title.trim(),
+        title: autoTitle,
         content: content.trim(),
-        category: category || "off-topic",
-        tags,
+        tags: finalTags,
       });
 
       toast.success("Post created successfully");
-      setTitle("");
       setContent("");
-      setCategory("");
+      setTags([]);
       setTagInput("");
       setExpanded(false);
     } catch (error) {
@@ -105,13 +100,6 @@ export function PostComposer() {
         </Button>
       </div>
 
-      <Input
-        placeholder="Post title"
-        value={title}
-        onChange={(event) => setTitle(event.target.value)}
-        className="border-border bg-muted/50"
-      />
-
       <Textarea
         placeholder="What do you want to share?"
         value={content}
@@ -120,25 +108,57 @@ export function PostComposer() {
         className="resize-none border-border bg-muted/50"
       />
 
-      <div className="flex flex-wrap gap-2">
-        <Select value={category} onValueChange={(value) => setCategory(value ?? "")}>
-          <SelectTrigger className="w-44 border-border bg-muted/50">
-            <SelectValue placeholder="Category" />
-          </SelectTrigger>
-          <SelectContent>
-            {categories.map((item) => (
-              <SelectItem key={item.slug} value={item.slug}>
-                {item.name}
-              </SelectItem>
+      <div>
+        {tags.length > 0 && (
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {tags.map((tag) => (
+              <span
+                key={tag}
+                className="inline-flex items-center gap-1 rounded-md bg-[#3B82F6]/10 px-2 py-0.5 text-xs font-medium text-[#3B82F6]"
+              >
+                #{tag}
+                <button
+                  type="button"
+                  onClick={() => setTags((prev) => prev.filter((t) => t !== tag))}
+                  className="ml-0.5 rounded-sm text-[#3B82F6]/60 hover:text-[#3B82F6] transition-colors"
+                >
+                  <X className="size-3" />
+                </button>
+              </span>
             ))}
-          </SelectContent>
-        </Select>
-
+          </div>
+        )}
         <Input
-          placeholder="Tags (comma separated)"
+          placeholder={tags.length > 0 ? "Add another tag…" : "Add tags (press Enter or comma)"}
           value={tagInput}
-          onChange={(event) => setTagInput(event.target.value)}
-          className="min-w-[160px] flex-1 border-border bg-muted/50"
+          onChange={(event) => {
+            const val = event.target.value;
+            // If user types a comma, commit the tag
+            if (val.includes(",")) {
+              const newTag = val.replace(",", "").trim().toLowerCase();
+              if (newTag && !tags.includes(newTag)) {
+                setTags((prev) => [...prev, newTag]);
+              }
+              setTagInput("");
+            } else {
+              setTagInput(val);
+            }
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              const newTag = tagInput.trim().toLowerCase();
+              if (newTag && !tags.includes(newTag)) {
+                setTags((prev) => [...prev, newTag]);
+              }
+              setTagInput("");
+            }
+            // Backspace on empty input removes last tag
+            if (event.key === "Backspace" && tagInput === "" && tags.length > 0) {
+              setTags((prev) => prev.slice(0, -1));
+            }
+          }}
+          className="border-border bg-muted/50"
         />
       </div>
 

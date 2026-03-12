@@ -2,9 +2,11 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useMemo, useState } from "react";
+import { useMutation, useQuery } from "convex/react";
 import { PostCard } from "./PostCard";
 import { InfiniteScroll } from "@/components/shared/InfiniteScroll";
 import { Skeleton } from "@/components/ui/skeleton";
+import { api } from "../../convex/_generated/api";
 
 interface FeedListProps {
   posts: Array<any>;
@@ -38,9 +40,13 @@ function PostSkeleton() {
 
 export function FeedList({ posts, isLoading }: FeedListProps) {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-  const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
-  const [bookmarkedPosts, setBookmarkedPosts] = useState<Set<string>>(new Set());
-  const [likeCounts, setLikeCounts] = useState<Record<string, number>>({});
+
+  const toggleLike = useMutation(api.posts.toggleLike);
+  const toggleBookmark = useMutation(api.bookmarks.toggleBookmark);
+  const likedPostIds = useQuery(api.posts.getLikedPostIds, {}) ?? [];
+  const bookmarkedPostIds = useQuery(api.bookmarks.getBookmarkedPostIds, {}) ?? [];
+  const likedSet = useMemo(() => new Set(likedPostIds), [likedPostIds]);
+  const bookmarkedSet = useMemo(() => new Set(bookmarkedPostIds), [bookmarkedPostIds]);
 
   const visiblePosts = useMemo(() => posts.slice(0, visibleCount), [posts, visibleCount]);
   const hasMore = visibleCount < posts.length;
@@ -64,35 +70,19 @@ export function FeedList({ posts, isLoading }: FeedListProps) {
       <div className="space-y-4">
         {visiblePosts.map((post) => {
           const postId = post._id;
-          const likeCount = likeCounts[postId] ?? post.likes;
 
           return (
             <PostCard
               key={postId}
               post={post}
-              liked={likedPosts.has(postId)}
-              bookmarked={bookmarkedPosts.has(postId)}
-              likeCount={likeCount}
+              liked={likedSet.has(postId)}
+              bookmarked={bookmarkedSet.has(postId)}
+              likeCount={post.likes}
               onLike={() => {
-                setLikedPosts((current) => {
-                  const next = new Set(current);
-                  if (next.has(postId)) {
-                    next.delete(postId);
-                    setLikeCounts((counts) => ({ ...counts, [postId]: Math.max((counts[postId] ?? post.likes) - 1, 0) }));
-                  } else {
-                    next.add(postId);
-                    setLikeCounts((counts) => ({ ...counts, [postId]: (counts[postId] ?? post.likes) + 1 }));
-                  }
-                  return next;
-                });
+                void toggleLike({ postId });
               }}
               onBookmark={() => {
-                setBookmarkedPosts((current) => {
-                  const next = new Set(current);
-                  if (next.has(postId)) next.delete(postId);
-                  else next.add(postId);
-                  return next;
-                });
+                void toggleBookmark({ targetId: postId, targetType: "post" });
               }}
             />
           );

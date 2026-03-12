@@ -7,10 +7,7 @@ import "./globals.css";
 
 
 export const metadata: Metadata = {
-  title: {
-    default: "GetWired.dev | Made with Opus 4.6 — Tech Community Platform",
-    template: "%s | GetWired.dev",
-  },
+  title: "GetWired.dev",
   description:
     "GetWired.dev — The all-in-one tech community platform. Forums, chat, news, profiles, and more.",
   manifest: "/manifest.json",

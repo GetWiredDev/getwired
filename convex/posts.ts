@@ -200,6 +200,61 @@ export const listTagStats = query({
   },
 });
 
+// ── Likes ────────────────────────────────────────────────────────────────────
+
+export const toggleLike = mutation({
+  args: { postId: v.id("posts") },
+  handler: async (ctx, args) => {
+    const { user } = await requireCurrentUser(ctx);
+    const post = await ctx.db.get(args.postId);
+    if (!post) throw new Error("Post not found");
+
+    const existing = await ctx.db
+      .query("postLikes")
+      .withIndex("by_user_post", (q) =>
+        q.eq("userId", user._id).eq("postId", args.postId),
+      )
+      .first();
+
+    if (existing) {
+      await ctx.db.delete(existing._id);
+      await ctx.db.patch(args.postId, { likes: Math.max(post.likes - 1, 0) });
+      return { liked: false };
+    } else {
+      await ctx.db.insert("postLikes", {
+        userId: user._id,
+        postId: args.postId,
+        createdAt: Date.now(),
+      });
+      await ctx.db.patch(args.postId, { likes: post.likes + 1 });
+      return { liked: true };
+    }
+  },
+});
+
+export const getLikedPostIds = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .first();
+    if (!user) return [];
+
+    const likes = await ctx.db
+      .query("postLikes")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .collect();
+
+    return likes.map((l) => l.postId);
+  },
+});
+
+// ── Create ───────────────────────────────────────────────────────────────────
+
 export const create = mutation({
   args: {
     title: v.string(),
