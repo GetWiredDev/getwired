@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import {
   Home,
@@ -22,8 +23,15 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
   Sheet,
   SheetTrigger,
@@ -101,39 +109,81 @@ function UserMenu({
   user: { displayName: string; username: string; avatarUrl: string };
   onSignOut: () => Promise<void>;
 }) {
+  const [showSignOutDialog, setShowSignOutDialog] = useState(false);
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger className="hidden cursor-pointer rounded-full outline-none md:block" data-testid="user-menu-trigger" aria-label="User menu">
-        <UserAvatar src={user.avatarUrl} name={user.displayName} size="md" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" sideOffset={8} className="w-56 border border-border bg-card" data-testid="user-menu-content">
-        <DropdownMenuLabel className="flex items-center gap-2 px-2 py-2">
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger className="hidden cursor-pointer rounded-full outline-none md:block" data-testid="user-menu-trigger" aria-label="User menu">
           <UserAvatar src={user.avatarUrl} name={user.displayName} size="md" />
-          <div className="flex flex-col">
-            <span className="text-sm font-medium text-foreground">{user.displayName}</span>
-            <span className="text-xs text-muted-foreground">@{user.username}</span>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" sideOffset={8} className="w-56 border border-border bg-card" data-testid="user-menu-content">
+          <div className="flex items-center gap-2 px-2 py-2">
+            <UserAvatar src={user.avatarUrl} name={user.displayName} size="md" />
+            <div className="flex flex-col">
+              <span className="text-sm font-medium text-foreground">{user.displayName}</span>
+              <span className="text-xs text-muted-foreground">@{user.username}</span>
+            </div>
           </div>
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <Link href={`/profile/${user.username}`}>
-          <DropdownMenuItem className="gap-2 cursor-pointer" data-testid="user-menu-profile">
-            <User className="size-4" /> View Profile
+          <DropdownMenuSeparator />
+          <Link href={`/profile/${user.username}`}>
+            <DropdownMenuItem className="gap-2 cursor-pointer" data-testid="user-menu-profile">
+              <User className="size-4" /> View Profile
+            </DropdownMenuItem>
+          </Link>
+          <Link href="/bookmarks">
+            <DropdownMenuItem className="gap-2 cursor-pointer" data-testid="user-menu-bookmarks">
+              <Bookmark className="size-4" /> Bookmarks
+            </DropdownMenuItem>
+          </Link>
+          <DropdownMenuItem className="gap-2 cursor-pointer" data-testid="user-menu-settings">
+            <Settings className="size-4" /> Settings
           </DropdownMenuItem>
-        </Link>
-        <Link href="/bookmarks">
-          <DropdownMenuItem className="gap-2 cursor-pointer" data-testid="user-menu-bookmarks">
-            <Bookmark className="size-4" /> Bookmarks
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            className="gap-2 cursor-pointer text-red-400"
+            onClick={() => {
+              // Defer so the dropdown fully closes before the dialog opens
+              requestAnimationFrame(() => setShowSignOutDialog(true));
+            }}
+            data-testid="user-menu-signout"
+          >
+            <LogOut className="size-4" /> Sign Out
           </DropdownMenuItem>
-        </Link>
-        <DropdownMenuItem className="gap-2 cursor-pointer" data-testid="user-menu-settings">
-          <Settings className="size-4" /> Settings
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem className="gap-2 cursor-pointer text-red-400" onClick={() => void onSignOut()} data-testid="user-menu-signout">
-          <LogOut className="size-4" /> Sign Out
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <Dialog open={showSignOutDialog} onOpenChange={setShowSignOutDialog}>
+        <DialogContent data-testid="signout-confirm-dialog">
+          <DialogHeader>
+            <DialogTitle>Sign out</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to sign out of your account?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowSignOutDialog(false)}
+              data-testid="signout-cancel"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                setShowSignOutDialog(false);
+                void onSignOut();
+              }}
+              data-testid="signout-confirm"
+            >
+              <LogOut className="mr-1.5 size-4" />
+              Sign Out
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
