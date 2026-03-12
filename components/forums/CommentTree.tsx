@@ -58,7 +58,7 @@ function CommentNode({
   const MAX_DEPTH = 4;
 
   return (
-    <div className={depth > 0 ? "ml-4 border-l border-[#3B82F6]/20 pl-4" : ""}>
+    <div className={depth > 0 ? "ml-4 border-l border-[#3B82F6]/20 pl-4" : ""} data-testid="comment-node">
       {!collapsed ? (
         <div className="py-2">
           <div className="mb-1 flex items-center gap-2">
@@ -77,6 +77,8 @@ function CommentNode({
           <div className="flex items-center gap-3">
             <button
               onClick={() => onLike(comment._id)}
+              data-testid="comment-like-button"
+              aria-label={likedComments.has(comment._id) ? "Unlike comment" : "Like comment"}
               className={`flex items-center gap-1 text-xs transition-colors ${
                 likedComments.has(comment._id)
                   ? "text-red-400"
@@ -90,6 +92,8 @@ function CommentNode({
               <button
                 onClick={() => setShowReply((current) => !current)}
                 className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-[#3B82F6]"
+                data-testid="comment-reply-button"
+                aria-label="Reply to comment"
               >
                 <MessageSquare className="size-3" />
                 Reply
@@ -181,12 +185,12 @@ export function CommentTree({ postId }: { postId: string }) {
   );
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" data-testid="comment-tree">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-foreground">
+        <h3 className="text-sm font-semibold text-foreground" data-testid="comment-count">
           {comments.length} {comments.length === 1 ? "Comment" : "Comments"}
         </h3>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1" data-testid="comment-sort-controls">
           {(["best", "new", "old"] as const).map((option) => (
             <Button
               key={option}
@@ -194,6 +198,8 @@ export function CommentTree({ postId }: { postId: string }) {
               size="xs"
               onClick={() => setSortBy(option)}
               className="text-xs capitalize"
+              data-testid={`comment-sort-${option}`}
+              aria-pressed={sortBy === option}
             >
               {option}
             </Button>

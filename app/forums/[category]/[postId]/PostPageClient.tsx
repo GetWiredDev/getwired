@@ -32,8 +32,8 @@ export function PostPageClient({ categorySlug, postId }: PostPageClientProps) {
   }
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-6">
-      <nav className="mb-4 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+    <div className="mx-auto max-w-4xl px-4 py-6" data-testid="post-detail-page">
+      <nav className="mb-4 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground" data-testid="breadcrumb" aria-label="Breadcrumb">
         <Link href="/forums" className="transition-colors hover:text-foreground">
           Forums
         </Link>
@@ -51,7 +51,7 @@ export function PostPageClient({ categorySlug, postId }: PostPageClientProps) {
 
       <PostDetail postId={postId} />
 
-      <div className="mt-6">
+      <div className="mt-6" data-testid="comments-section">
         <div className="glass rounded-xl p-6">
           <CommentTree postId={postId} />
         </div>

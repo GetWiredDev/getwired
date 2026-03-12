@@ -62,6 +62,8 @@ export function NotificationItem({
     <Link
       href={link}
       onClick={onClick}
+      data-testid="notification-item"
+      aria-label={`${type} notification: ${message}`}
       className={cn(
         "flex items-start gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-accent",
         !isRead && "border-l-2 border-l-[#3B82F6]",

@@ -57,7 +57,7 @@ export function NewsletterClient() {
   };
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-8">
+    <main className="mx-auto max-w-3xl px-4 py-8" data-testid="newsletter-page">
       {/* Hero */}
       <div className="mb-10 text-center">
         <Mail className="mx-auto mb-4 size-10 text-[#3B82F6]" />
@@ -79,7 +79,7 @@ export function NewsletterClient() {
           </p>
         </Card>
       ) : (
-        <Card className="glass border-border p-6 mb-10">
+        <Card className="glass border-border p-6 mb-10" data-testid="newsletter-form">
           <form onSubmit={handleSubscribe} className="flex gap-3">
             <Input
               type="email"
@@ -87,10 +87,14 @@ export function NewsletterClient() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="flex-1 bg-muted/50 border-border focus-visible:ring-[#3B82F6]/30"
+              data-testid="newsletter-email-input"
+              aria-label="Email address"
             />
             <Button
               type="submit"
               className="bg-[#3B82F6] text-white font-semibold hover:bg-[#2563EB] px-6 shrink-0"
+              data-testid="newsletter-subscribe-button"
+              aria-label="Subscribe to newsletter"
             >
               Subscribe
             </Button>

@@ -56,7 +56,7 @@ export function ProfileHeader({ user, isOwnProfile }: ProfileHeaderProps) {
   });
 
   return (
-    <div className="glass-strong rounded-2xl relative overflow-hidden">
+    <div className="glass-strong rounded-2xl relative overflow-hidden" data-testid="profile-header">
       {/* Cover banner with mesh gradient */}
       <div className="h-28 md:h-32 relative">
         <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 via-purple-600/10 to-blue-600/20" />
@@ -69,6 +69,9 @@ export function ProfileHeader({ user, isOwnProfile }: ProfileHeaderProps) {
                 variant={isFollowing ? "secondary" : "default"}
                 size="sm"
                 onClick={() => setIsFollowing(!isFollowing)}
+                data-testid="profile-follow-button"
+                aria-label={isFollowing ? "Unfollow user" : "Follow user"}
+                aria-pressed={isFollowing}
                 className={
                   isFollowing
                     ? "glass border-border h-8 rounded-full px-4 text-xs font-medium"
@@ -81,6 +84,8 @@ export function ProfileHeader({ user, isOwnProfile }: ProfileHeaderProps) {
               <Link
                 href="/chat"
                 className="inline-flex items-center justify-center h-8 gap-1.5 rounded-full glass border-border px-4 text-xs font-medium text-foreground hover:bg-accent transition-colors"
+                data-testid="profile-message-button"
+                aria-label="Send message"
               >
                 <MessageSquare className="size-3.5" />
                 Message

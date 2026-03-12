@@ -44,7 +44,7 @@ function SearchPageContent() {
   );
 
   return (
-    <main className="mx-auto max-w-4xl px-4 py-8">
+    <main className="mx-auto max-w-4xl px-4 py-8" data-testid="search-page">
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-4">
@@ -65,11 +65,13 @@ function SearchPageContent() {
 
       {/* Tabs */}
       {query.trim() && (
-        <div className="flex flex-wrap gap-2 mb-6">
+        <div className="flex flex-wrap gap-2 mb-6" data-testid="search-tabs">
           {TABS.map((t) => (
             <button
               key={t.value}
               onClick={() => setTab(t.value)}
+              data-testid={`search-tab-${t.value}`}
+              aria-pressed={tab === t.value}
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
                 tab === t.value

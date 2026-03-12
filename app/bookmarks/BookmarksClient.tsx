@@ -64,21 +64,21 @@ export function BookmarksClient() {
   const users = bookmarks.filter((bookmark) => bookmark.targetType === "user");
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-6">
+    <main className="mx-auto max-w-3xl px-4 py-6" data-testid="bookmarks-page">
       <div className="mb-6 flex items-center gap-3">
         <Bookmark className="size-6 text-[#3B82F6]" />
         <h1 className="text-2xl font-bold text-foreground">Bookmarks</h1>
       </div>
 
-      <Tabs defaultValue="posts">
+      <Tabs defaultValue="posts" data-testid="bookmarks-tabs">
         <TabsList className="mb-4 border border-border bg-muted/50">
-          <TabsTrigger value="posts" className="data-active:text-[#3B82F6]">
+          <TabsTrigger value="posts" className="data-active:text-[#3B82F6]" data-testid="bookmarks-tab-posts">
             Posts ({posts.length})
           </TabsTrigger>
-          <TabsTrigger value="news" className="data-active:text-[#3B82F6]">
+          <TabsTrigger value="news" className="data-active:text-[#3B82F6]" data-testid="bookmarks-tab-news">
             News ({news.length})
           </TabsTrigger>
-          <TabsTrigger value="users" className="data-active:text-[#3B82F6]">
+          <TabsTrigger value="users" className="data-active:text-[#3B82F6]" data-testid="bookmarks-tab-users">
             Users ({users.length})
           </TabsTrigger>
         </TabsList>
@@ -108,9 +108,9 @@ function BookmarkList({ items, onRemove }: { items: BookmarkItem[]; onRemove: (i
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" data-testid="bookmark-list">
       {items.map((item) => (
-        <Card key={item.id} className="glass border-border p-3">
+        <Card key={item.id} className="glass border-border p-3" data-testid="bookmark-item">
           <div className="flex items-start justify-between gap-3">
             <Link href={item.link} className="group min-w-0 flex-1">
               <h3 className="line-clamp-1 text-sm font-medium text-foreground transition-colors group-hover:text-[#3B82F6]">
@@ -135,6 +135,8 @@ function BookmarkList({ items, onRemove }: { items: BookmarkItem[]; onRemove: (i
               size="icon"
               onClick={() => onRemove(item.id)}
               className="size-7 shrink-0 text-muted-foreground hover:text-red-400"
+              data-testid="bookmark-remove"
+              aria-label="Remove bookmark"
             >
               <X className="size-3.5" />
             </Button>

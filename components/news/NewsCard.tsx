@@ -40,7 +40,7 @@ export function NewsCard({ article }: NewsCardProps) {
   const sourceColor = SOURCE_COLORS[article.source] ?? "#94A3B8";
 
   return (
-    <article className="group flex flex-col rounded-xl p-4 transition-all duration-200 glass hover:border-[#3B82F6]/20 hover:glow-green-sm">
+    <article className="group flex flex-col rounded-xl p-4 transition-all duration-200 glass hover:border-[#3B82F6]/20 hover:glow-green-sm" data-testid="news-card">
       <div className="mb-2 flex items-center justify-between">
         <Badge
           variant="outline"

@@ -56,6 +56,9 @@ export function FollowButton({
       variant={following ? "default" : "outline"}
       size="sm"
       onClick={toggle}
+      data-testid="follow-button"
+      aria-label={following ? "Unfollow" : "Follow"}
+      aria-pressed={following}
       className={cn(
         "gap-1.5 transition-all",
         following

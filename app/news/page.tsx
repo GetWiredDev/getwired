@@ -19,7 +19,7 @@ export const metadata: Metadata = {
 
 export default function NewsPage() {
   return (
-    <main className="mx-auto max-w-7xl px-4 py-8">
+    <main className="mx-auto max-w-7xl px-4 py-8" data-testid="news-page">
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-2">
           <div className="flex size-10 items-center justify-center rounded-lg bg-[#3B82F6]/10">

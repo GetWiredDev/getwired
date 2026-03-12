@@ -67,7 +67,7 @@ export function AdminClient() {
   const reviewedLogs = logs.filter((log) => log.action !== "flagged");
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8">
+    <main className="mx-auto max-w-6xl px-4 py-8" data-testid="admin-page">
       <div className="mb-8 flex items-center gap-3">
         <ShieldAlert className="size-7 text-[#3B82F6]" />
         <h1 className="text-2xl font-bold text-foreground">Admin Dashboard</h1>
@@ -97,7 +97,7 @@ function StatsGrid({
   ];
 
   return (
-    <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4" data-testid="admin-stats-grid">
       {stats.map((stat) => (
         <Card key={stat.label} className="glass border-border p-5">
           <div className="flex items-center justify-between">

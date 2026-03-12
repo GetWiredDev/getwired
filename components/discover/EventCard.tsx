@@ -54,7 +54,7 @@ export function EventCard({
   };
 
   return (
-    <Card className="glass border-border transition-all hover:border-[#3B82F6]/20">
+    <Card className="glass border-border transition-all hover:border-[#3B82F6]/20" data-testid="event-card">
       <CardContent className="p-4">
         <div className="mb-3 flex items-center justify-between">
           <Badge className={`${typeConfig.bg} ${typeConfig.text} border-none text-[10px] font-semibold`}>
@@ -90,6 +90,9 @@ export function EventCard({
             size="sm"
             variant={rsvp ? "default" : "outline"}
             onClick={handleRsvp}
+            data-testid="event-rsvp-button"
+            aria-label={rsvp ? "Cancel RSVP" : "RSVP to event"}
+            aria-pressed={rsvp}
             className={
               rsvp
                 ? "h-7 bg-[#3B82F6] text-xs text-white hover:bg-[#3B82F6]/80"

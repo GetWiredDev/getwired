@@ -60,7 +60,7 @@ export function NotificationsClient() {
   }
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-6">
+    <main className="mx-auto max-w-3xl px-4 py-6" data-testid="notifications-page">
       <div className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Bell className="size-6 text-[#3B82F6]" />
@@ -77,6 +77,8 @@ export function NotificationsClient() {
             size="sm"
             onClick={() => void markAllRead({})}
             className="gap-1.5 text-[#3B82F6] hover:text-[#3B82F6]/80"
+            data-testid="mark-all-read"
+            aria-label="Mark all notifications as read"
           >
             <CheckCheck className="size-4" />
             Mark all as read
@@ -84,7 +86,7 @@ export function NotificationsClient() {
         )}
       </div>
 
-      <Tabs defaultValue="all" onValueChange={setActiveTab}>
+      <Tabs defaultValue="all" onValueChange={setActiveTab} data-testid="notification-tabs">
         <TabsList className="mb-4 flex-wrap border border-border bg-muted/50">
           {FILTER_TABS.map((tab) => (
             <TabsTrigger

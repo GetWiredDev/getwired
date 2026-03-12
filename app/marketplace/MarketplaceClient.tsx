@@ -84,7 +84,7 @@ const PREMIUM_FEATURES = [
 
 export function MarketplaceClient() {
   return (
-    <main className="mx-auto max-w-5xl px-4 py-8">
+    <main className="mx-auto max-w-5xl px-4 py-8" data-testid="marketplace-page">
       {/* Hero */}
       <div className="mb-12 text-center">
         <div className="inline-flex items-center gap-2 mb-4">
@@ -99,7 +99,7 @@ export function MarketplaceClient() {
       </div>
 
       {/* Boost Section */}
-      <section className="mb-14">
+      <section className="mb-14" data-testid="boost-section">
         <div className="flex items-center gap-2 mb-6">
           <Zap className="size-5 text-[#3B82F6]" />
           <h2 className="text-xl font-bold text-foreground">Boost Your Post</h2>
@@ -112,7 +112,7 @@ export function MarketplaceClient() {
       </section>
 
       {/* Advertise Section */}
-      <section className="mb-14">
+      <section className="mb-14" data-testid="advertise-section">
         <div className="flex items-center gap-2 mb-6">
           <Megaphone className="size-5 text-[#3B82F6]" />
           <h2 className="text-xl font-bold text-foreground">Advertise</h2>
@@ -148,7 +148,7 @@ export function MarketplaceClient() {
       </section>
 
       {/* Premium Section */}
-      <section>
+      <section data-testid="premium-section">
         <Card className="glass border-[#3B82F6]/20 glow-green p-8">
           <div className="flex flex-col items-center text-center md:flex-row md:text-left md:items-start gap-8">
             <div className="flex-1">

@@ -20,7 +20,7 @@ export function ChatPageClient() {
   };
 
   return (
-    <div className="flex h-full md:h-full">
+    <div className="flex h-full md:h-full" data-testid="chat-page">
       <div className="hidden w-[300px] shrink-0 md:block">
         <ChatRoomList activeRoomId={selectedRoomId} onSelectRoom={handleSelectRoom} />
       </div>

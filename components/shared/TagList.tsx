@@ -14,7 +14,7 @@ export function TagList({ tags, className, size = "default" }: TagListProps) {
   if (!tags.length) return null;
 
   return (
-    <div className={cn("flex flex-wrap gap-1.5", className)}>
+    <div className={cn("flex flex-wrap gap-1.5", className)} data-testid="tag-list">
       {tags.map((tag) => (
         <Link key={tag} href={`/search?tag=${encodeURIComponent(tag)}`}>
           <Badge

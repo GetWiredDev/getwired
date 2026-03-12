@@ -45,7 +45,7 @@ export function CommentComposer({
   }
 
   return (
-    <div className="flex gap-3">
+    <div className="flex gap-3" data-testid="comment-composer">
       {!compact && (
         <UserAvatar
           src={user.avatarUrl}
@@ -60,6 +60,8 @@ export function CommentComposer({
           placeholder={placeholder}
           className="min-h-[60px] resize-none bg-muted/50 text-sm"
           rows={compact ? 2 : 3}
+          data-testid="comment-textarea"
+          aria-label="Write a comment"
         />
         <div className="flex items-center justify-end gap-2">
           {onCancel && (
@@ -72,6 +74,8 @@ export function CommentComposer({
             onClick={handleSubmit}
             disabled={!content.trim()}
             className="gap-1.5"
+            data-testid="comment-submit"
+            aria-label="Submit comment"
           >
             <Send className="size-3" />
             Reply

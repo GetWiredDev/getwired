@@ -145,10 +145,10 @@ export function EditProfileClient() {
   }
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 px-4 py-6">
+    <main className="mx-auto max-w-3xl space-y-6 px-4 py-6" data-testid="edit-profile-page">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-foreground">Edit Profile</h1>
-        <Button onClick={handleSave} disabled={saving} className="bg-[#3B82F6] text-white hover:bg-[#2563EB]">
+        <Button onClick={handleSave} disabled={saving} className="bg-[#3B82F6] text-white hover:bg-[#2563EB]" data-testid="profile-save-button" aria-label="Save profile changes">
           <Save className="mr-1 size-4" />
           {saving ? "Saving..." : "Save Changes"}
         </Button>
@@ -178,6 +178,8 @@ export function EditProfileClient() {
               variant="outline"
               disabled={uploadingAvatar}
               onClick={() => fileInputRef.current?.click()}
+              data-testid="profile-change-avatar"
+              aria-label="Change avatar"
             >
               {uploadingAvatar ? "Uploading..." : "Change Avatar"}
             </Button>
@@ -195,20 +197,20 @@ export function EditProfileClient() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="name">Full Name</Label>
-              <Input id="name" value={form.name} onChange={(event) => updateField("name", event.target.value)} />
+              <Input id="name" value={form.name} onChange={(event) => updateField("name", event.target.value)} data-testid="profile-input-name" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="username">Username</Label>
-              <Input id="username" value={form.username} onChange={(event) => updateField("username", event.target.value)} />
+              <Input id="username" value={form.username} onChange={(event) => updateField("username", event.target.value)} data-testid="profile-input-username" />
             </div>
           </div>
           <div className="space-y-2">
             <Label htmlFor="bio">Bio</Label>
-            <Textarea id="bio" value={form.bio} onChange={(event) => updateField("bio", event.target.value)} rows={3} />
+            <Textarea id="bio" value={form.bio} onChange={(event) => updateField("bio", event.target.value)} rows={3} data-testid="profile-input-bio" />
           </div>
           <div className="space-y-2">
             <Label htmlFor="location">Location</Label>
-            <Input id="location" value={form.location} onChange={(event) => updateField("location", event.target.value)} />
+            <Input id="location" value={form.location} onChange={(event) => updateField("location", event.target.value)} data-testid="profile-input-location" />
           </div>
         </CardContent>
       </Card>

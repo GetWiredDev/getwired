@@ -45,7 +45,7 @@ export function CategoryCard({
   const Icon = iconMap[icon] ?? Brain;
 
   return (
-    <Link href={`/forums/${slug}`} className="group block">
+    <Link href={`/forums/${slug}`} className="group block" data-testid={`forum-category-${slug}`} aria-label={`${name} forum — ${postCount} posts`}>
       <div
         className="glass rounded-xl p-5 transition-all duration-300 hover:glow-green-sm"
         style={{

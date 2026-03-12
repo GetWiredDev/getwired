@@ -62,7 +62,7 @@ export function ChatRoomList({ activeRoomId, onSelectRoom }: ChatRoomListProps) 
   const dmRooms = filteredRooms.filter((room) => room.type === "dm");
 
   return (
-    <div className="flex h-full flex-col border-r border-border bg-card/50">
+    <div className="flex h-full flex-col border-r border-border bg-card/50" data-testid="chat-room-list" aria-label="Chat rooms">
       <div className="flex items-center justify-between border-b border-border px-3 py-3">
         <h2 className="text-sm font-semibold text-foreground">Chat</h2>
         <Button variant="ghost" size="icon" className="size-7" disabled>
@@ -78,6 +78,8 @@ export function ChatRoomList({ activeRoomId, onSelectRoom }: ChatRoomListProps) 
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Search rooms..."
             className="h-8 border-border/50 bg-secondary/30 pl-8 text-xs"
+            data-testid="chat-room-search"
+            aria-label="Search chat rooms"
           />
         </div>
       </div>
@@ -182,6 +184,9 @@ function RoomItem({
   return (
     <button
       onClick={onClick}
+      data-testid="chat-room-item"
+      aria-label={`Chat room: ${name}`}
+      aria-current={active ? "true" : undefined}
       className={cn(
         "flex w-full items-center gap-2.5 rounded-lg border px-2 py-2 text-left transition-colors",
         active

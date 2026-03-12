@@ -85,8 +85,8 @@ export function CategoryFeedClient({ slug }: { slug: string }) {
   }
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-6">
-      <nav className="mb-4 flex items-center gap-1.5 text-xs text-muted-foreground">
+    <div className="mx-auto max-w-4xl px-4 py-6" data-testid="category-feed-page">
+      <nav className="mb-4 flex items-center gap-1.5 text-xs text-muted-foreground" data-testid="breadcrumb" aria-label="Breadcrumb">
         <Link href="/forums" className="transition-colors hover:text-foreground">
           Forums
         </Link>
@@ -112,7 +112,7 @@ export function CategoryFeedClient({ slug }: { slug: string }) {
         </div>
       </div>
 
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex items-center justify-between" data-testid="category-sort-controls">
         <div className="flex items-center gap-1">
           {([
             ["hot", Flame, "Hot"],
@@ -125,6 +125,8 @@ export function CategoryFeedClient({ slug }: { slug: string }) {
               size="sm"
               onClick={() => setSortBy(key)}
               className="gap-1.5 text-xs capitalize"
+              data-testid={`sort-${key}`}
+              aria-pressed={sortBy === key}
             >
               <SortIcon className="size-3" />
               {label}
@@ -132,16 +134,16 @@ export function CategoryFeedClient({ slug }: { slug: string }) {
           ))}
         </div>
         <Link href="/">
-          <Button size="sm" className="gap-1.5">
+          <Button size="sm" className="gap-1.5" data-testid="new-post-button">
             <Plus className="size-3" />
             New Post
           </Button>
         </Link>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-3" data-testid="category-post-list">
         {posts.map((post) => (
-          <Link key={post._id} href={`/forums/${slug}/${post._id}`} className="group block">
+          <Link key={post._id} href={`/forums/${slug}/${post._id}`} className="group block" data-testid="category-post-item">
             <div className="glass rounded-xl p-4 transition-all hover:glow-green-sm">
               <div className="flex items-start gap-3">
                 <UserAvatar src={post.author.avatar} name={post.author.name} size="sm" />

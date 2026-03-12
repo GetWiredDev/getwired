@@ -33,13 +33,13 @@ export function ShareButtons({ url, title }: ShareButtonsProps) {
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <Button variant="ghost" size="icon-xs" className="text-muted-foreground hover:text-foreground">
+          <Button variant="ghost" size="icon-xs" className="text-muted-foreground hover:text-foreground" data-testid="share-button" aria-label="Share">
             <Share2 className="size-3.5" />
           </Button>
         }
       />
-      <DropdownMenuContent align="end" sideOffset={4}>
-        <DropdownMenuItem onClick={handleCopyLink}>
+      <DropdownMenuContent align="end" sideOffset={4} data-testid="share-menu">
+        <DropdownMenuItem onClick={handleCopyLink} data-testid="share-copy-link">
           <Link2 className="size-4 mr-2" />
           Copy link
         </DropdownMenuItem>

@@ -18,7 +18,7 @@ export function ForumsPageClient() {
   );
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-6">
+    <div className="mx-auto max-w-4xl px-4 py-6" data-testid="forums-page">
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-center gap-2 mb-2">
@@ -38,11 +38,13 @@ export function ForumsPageClient() {
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search categories..."
           className="pl-9 bg-muted/50"
+          data-testid="forums-search-input"
+          aria-label="Search forum categories"
         />
       </div>
 
       {/* Category grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4" data-testid="forums-category-grid">
         {filtered.map((cat) => (
           <CategoryCard
             key={cat.slug}

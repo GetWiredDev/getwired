@@ -20,10 +20,10 @@ export function DiscoverContent() {
   const users = useQuery(api.users.list, {}) ?? [];
 
   return (
-    <div className="mx-auto flex max-w-7xl gap-6 px-4 py-6">
+    <div className="mx-auto flex max-w-7xl gap-6 px-4 py-6" data-testid="discover-page">
       <Sidebar />
 
-      <main className="min-w-0 flex-1">
+      <main className="min-w-0 flex-1" data-testid="discover-content">
         <h1 className="mb-1 flex items-center gap-2 text-2xl font-bold">
           <span className="text-[#3B82F6]">⚡</span> Discover
         </h1>

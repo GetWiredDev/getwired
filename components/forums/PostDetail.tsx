@@ -51,7 +51,7 @@ export function PostDetail({ postId }: { postId: string }) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-testid="post-detail">
       <div className="glass rounded-xl p-6">
         <div className="mb-4 flex flex-wrap items-center gap-2">
           {post.categoryInfo && (
@@ -116,11 +116,14 @@ export function PostDetail({ postId }: { postId: string }) {
             size="sm"
             onClick={() => setLiked((current) => !current)}
             className={`gap-1.5 ${liked ? "text-red-400" : ""}`}
+            data-testid="post-detail-like-button"
+            aria-label={liked ? "Unlike post" : "Like post"}
+            aria-pressed={liked}
           >
             <Heart className={`size-3.5 ${liked ? "fill-current" : ""}`} />
             {post.likes + (liked ? 1 : 0)}
           </Button>
-          <Button variant="ghost" size="sm" className="gap-1.5">
+          <Button variant="ghost" size="sm" className="gap-1.5" data-testid="post-detail-comment-count">
             <MessageSquare className="size-3.5" />
             {post.commentCount}
           </Button>
@@ -129,11 +132,14 @@ export function PostDetail({ postId }: { postId: string }) {
             size="sm"
             onClick={() => setBookmarked((current) => !current)}
             className={`gap-1.5 ${bookmarked ? "text-[#3B82F6]" : ""}`}
+            data-testid="post-detail-bookmark-button"
+            aria-label={bookmarked ? "Remove bookmark" : "Bookmark post"}
+            aria-pressed={bookmarked}
           >
             <Bookmark className={`size-3.5 ${bookmarked ? "fill-current" : ""}`} />
             Save
           </Button>
-          <Button variant="ghost" size="sm" className="gap-1.5">
+          <Button variant="ghost" size="sm" className="gap-1.5" data-testid="post-detail-share-button" aria-label="Share post">
             <Share2 className="size-3.5" />
             Share
           </Button>
@@ -179,7 +185,7 @@ export function PostDetail({ postId }: { postId: string }) {
       </div>
 
       {relatedPosts.length > 0 && (
-        <div className="glass rounded-xl p-5">
+        <div className="glass rounded-xl p-5" data-testid="related-posts">
           <h3 className="mb-3 text-sm font-semibold text-foreground">Related Posts</h3>
           <div className="space-y-3">
             {relatedPosts.map((relatedPost) => (

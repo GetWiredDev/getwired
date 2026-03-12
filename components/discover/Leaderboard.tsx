@@ -59,7 +59,7 @@ export function Leaderboard() {
   );
 
   return (
-    <Card className="glass border-border">
+    <Card className="glass border-border" data-testid="discover-leaderboard">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-sm font-semibold">
           <Trophy className="size-4 text-[#3B82F6]" />

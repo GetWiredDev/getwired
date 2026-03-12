@@ -30,7 +30,7 @@ export function TrendingTags() {
   const minCount = tagStats[tagStats.length - 1]?.count ?? 1;
 
   return (
-    <Card className="glass border-border">
+    <Card className="glass border-border" data-testid="discover-trending-tags">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-sm font-semibold">
           <TrendingUp className="size-4 text-[#3B82F6]" />

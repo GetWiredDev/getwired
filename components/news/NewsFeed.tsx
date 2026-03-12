@@ -65,8 +65,8 @@ export function NewsFeed() {
   const hasMore = visibleCount < sortedArticles.length;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap gap-2">
+    <div className="space-y-6" data-testid="news-feed">
+      <div className="flex flex-wrap gap-2" data-testid="news-source-filters">
         {sourceOptions.map((option) => (
           <Badge
             key={option}
@@ -87,7 +87,7 @@ export function NewsFeed() {
         ))}
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2" data-testid="news-sort-controls">
         <Button
           variant={sort === "latest" ? "secondary" : "ghost"}
           size="xs"

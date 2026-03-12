@@ -36,7 +36,7 @@ export function ProfilePageClient({ userId }: { userId: string }) {
   const isOwnProfile = currentUser?.username === user.username;
 
   return (
-    <main className="space-y-6 px-4 py-6">
+    <main className="space-y-6 px-4 py-6" data-testid="profile-page">
       <ProfileHeader
         user={{
           name: user.name,
@@ -56,18 +56,18 @@ export function ProfilePageClient({ userId }: { userId: string }) {
         isOwnProfile={isOwnProfile}
       />
 
-      <Tabs defaultValue="overview">
+      <Tabs defaultValue="overview" data-testid="profile-tabs">
         <TabsList className="h-auto w-full justify-start rounded-full border border-border bg-muted/50 p-1">
-          <TabsTrigger value="overview" className="rounded-full px-4 py-1.5 text-xs data-active:bg-[#3B82F6] data-active:text-white data-active:shadow-lg data-active:shadow-blue-500/20">
+          <TabsTrigger value="overview" className="rounded-full px-4 py-1.5 text-xs data-active:bg-[#3B82F6] data-active:text-white data-active:shadow-lg data-active:shadow-blue-500/20" data-testid="profile-tab-overview">
             Overview
           </TabsTrigger>
-          <TabsTrigger value="posts" className="rounded-full px-4 py-1.5 text-xs data-active:bg-[#3B82F6] data-active:text-white data-active:shadow-lg data-active:shadow-blue-500/20">
+          <TabsTrigger value="posts" className="rounded-full px-4 py-1.5 text-xs data-active:bg-[#3B82F6] data-active:text-white data-active:shadow-lg data-active:shadow-blue-500/20" data-testid="profile-tab-posts">
             Posts ({posts.length})
           </TabsTrigger>
-          <TabsTrigger value="comments" className="rounded-full px-4 py-1.5 text-xs data-active:bg-[#3B82F6] data-active:text-white data-active:shadow-lg data-active:shadow-blue-500/20">
+          <TabsTrigger value="comments" className="rounded-full px-4 py-1.5 text-xs data-active:bg-[#3B82F6] data-active:text-white data-active:shadow-lg data-active:shadow-blue-500/20" data-testid="profile-tab-comments">
             Comments ({comments.length})
           </TabsTrigger>
-          <TabsTrigger value="cv" className="rounded-full px-4 py-1.5 text-xs data-active:bg-[#3B82F6] data-active:text-white data-active:shadow-lg data-active:shadow-blue-500/20">
+          <TabsTrigger value="cv" className="rounded-full px-4 py-1.5 text-xs data-active:bg-[#3B82F6] data-active:text-white data-active:shadow-lg data-active:shadow-blue-500/20" data-testid="profile-tab-cv">
             Tech CV
           </TabsTrigger>
         </TabsList>

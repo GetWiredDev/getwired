@@ -84,10 +84,10 @@ export function ChatRoom({ roomId }: ChatRoomProps) {
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="glass-strong flex items-center justify-between border-b border-border px-4 py-3">
+    <div className="flex h-full flex-col" data-testid="chat-room">
+      <div className="glass-strong flex items-center justify-between border-b border-border px-4 py-3" data-testid="chat-room-header">
         <div className="min-w-0">
-          <h2 className="truncate text-sm font-semibold text-foreground">{room.name}</h2>
+          <h2 className="truncate text-sm font-semibold text-foreground" data-testid="chat-room-name">{room.name}</h2>
           <p className="truncate text-xs text-muted-foreground">{room.description}</p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
@@ -103,7 +103,7 @@ export function ChatRoom({ roomId }: ChatRoomProps) {
         </div>
       </div>
 
-      <ScrollArea className="flex-1 overflow-y-auto">
+      <ScrollArea className="flex-1 overflow-y-auto" data-testid="chat-messages-area">
         <div className="py-4">
           {messages.map((message) => (
             <MessageBubble

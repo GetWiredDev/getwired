@@ -62,7 +62,7 @@ export function Poll({ pollId, question, options, expiresAt }: PollProps) {
   const isExpired = expiresAt ? Date.now() > expiresAt : false;
 
   return (
-    <Card className="glass border-border">
+    <Card className="glass border-border" data-testid="poll">
       <CardContent className="p-4">
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-3">
           <BarChart3 className="size-3.5 text-[#3B82F6]" />
@@ -140,6 +140,8 @@ export function Poll({ pollId, question, options, expiresAt }: PollProps) {
                 disabled={selected === null}
                 onClick={handleVote}
                 className="bg-[#3B82F6] text-white hover:bg-[#3B82F6]/80 text-xs h-7"
+                data-testid="poll-vote-button"
+                aria-label="Submit vote"
               >
                 Vote
               </Button>

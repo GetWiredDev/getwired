@@ -21,7 +21,7 @@ export function ChatRoomPageClient({ roomId }: ChatRoomPageClientProps) {
   };
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)]">
+    <div className="flex h-[calc(100vh-3.5rem)]" data-testid="chat-room-page">
       <div className="hidden w-[300px] shrink-0 md:block">
         <ChatRoomList activeRoomId={roomId} onSelectRoom={handleSelectRoom} />
       </div>
