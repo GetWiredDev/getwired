@@ -73,7 +73,7 @@ export function SearchBar({
   }, []);
 
   return (
-    <div className={cn("relative", className)}>
+    <div className={cn("relative", className)} data-testid="search-bar">
       <Search
         className={cn(
           "absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none",
@@ -86,6 +86,8 @@ export function SearchBar({
         onChange={handleChange}
         placeholder={placeholder}
         autoFocus={autoFocus}
+        data-testid="search-input"
+        aria-label="Search"
         className={cn(
           "pl-10 pr-10 bg-muted/50 border-border focus-visible:border-[#3B82F6]/50 focus-visible:ring-[#3B82F6]/20",
           size === "lg" ? "h-12 text-base rounded-xl" : "h-8 text-sm"
@@ -97,6 +99,8 @@ export function SearchBar({
           size="icon-xs"
           onClick={handleClear}
           className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          data-testid="search-clear"
+          aria-label="Clear search"
         >
           <X className="size-3.5" />
         </Button>

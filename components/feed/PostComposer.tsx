@@ -76,6 +76,8 @@ export function PostComposer() {
       <button
         onClick={() => setExpanded(true)}
         className="glass w-full cursor-pointer rounded-xl p-4 text-left transition-all hover:border-[#3B82F6]/20"
+        data-testid="post-composer-trigger"
+        aria-label="Create a new post"
       >
         <div className="flex items-center gap-3">
           <UserAvatar src={user.avatarUrl} name={user.displayName} size="md" />
@@ -89,7 +91,7 @@ export function PostComposer() {
   }
 
   return (
-    <div className="glass space-y-3 rounded-xl p-4">
+    <div className="glass space-y-3 rounded-xl p-4" data-testid="post-composer-form" role="form" aria-label="Create post form">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <UserAvatar src={user.avatarUrl} name={user.displayName} size="md" />
@@ -106,6 +108,8 @@ export function PostComposer() {
         onChange={(event) => setContent(event.target.value)}
         rows={4}
         className="resize-none border-border bg-muted/50"
+        data-testid="post-composer-content"
+        aria-label="Post content"
       />
 
       <div>
@@ -163,7 +167,7 @@ export function PostComposer() {
       </div>
 
       <div className="flex justify-end">
-        <Button onClick={() => void handleSubmit()} disabled={submitting} className="gap-1.5">
+        <Button onClick={() => void handleSubmit()} disabled={submitting} className="gap-1.5" data-testid="post-composer-submit" aria-label="Create post">
           <Send className="size-3.5" />
           {submitting ? "Creating..." : "Create Post"}
         </Button>

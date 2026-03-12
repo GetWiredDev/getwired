@@ -67,7 +67,7 @@ export function FeedList({ posts, isLoading }: FeedListProps) {
       hasMore={hasMore}
       isLoading={false}
     >
-      <div className="space-y-4">
+      <div className="space-y-4" data-testid="feed-list" role="feed" aria-label="Posts feed">
         {visiblePosts.map((post) => {
           const postId = post._id;
 

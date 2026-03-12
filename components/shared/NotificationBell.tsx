@@ -23,7 +23,7 @@ export function NotificationBell() {
 
   return (
     <Popover>
-      <PopoverTrigger className="relative inline-flex size-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+      <PopoverTrigger className="relative inline-flex size-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground" data-testid="notification-bell" aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ""}`}>
         <Bell className="size-4" />
         {unreadCount > 0 && (
           <span className="absolute -top-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full bg-[#3B82F6] text-[9px] font-bold text-white">
@@ -31,7 +31,7 @@ export function NotificationBell() {
           </span>
         )}
       </PopoverTrigger>
-      <PopoverContent align="end" sideOffset={8} className="w-80 border border-border bg-card p-0">
+      <PopoverContent align="end" sideOffset={8} className="w-80 border border-border bg-card p-0" data-testid="notification-panel">
         <div className="flex items-center justify-between px-3 py-2.5">
           <h3 className="text-sm font-semibold text-foreground">Notifications</h3>
           {unreadCount > 0 && (

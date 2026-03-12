@@ -57,14 +57,14 @@ export default function Home() {
   }, [activeTab, posts]);
 
   return (
-    <div className="mx-auto flex max-w-7xl gap-6 px-4 py-6">
+    <div className="mx-auto flex max-w-7xl gap-6 px-4 py-6" data-testid="home-page">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(ORG_JSON_LD) }}
       />
       <Sidebar />
 
-      <main className="min-w-0 flex-1">
+      <main className="min-w-0 flex-1" data-testid="main-content" role="main">
         <PostComposer />
 
         <div className="mt-4">
@@ -100,9 +100,9 @@ export default function Home() {
         </div>
       </main>
 
-      <aside className="hidden w-72 shrink-0 xl:block">
+      <aside className="hidden w-72 shrink-0 xl:block" data-testid="right-sidebar" aria-label="Trending and suggestions">
         <div className="sticky top-20 flex flex-col gap-4">
-          <div className="glass rounded-xl p-4">
+          <div className="glass rounded-xl p-4" data-testid="trending-tags-panel">
             <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               🔥 Trending Tags
             </h3>
@@ -120,7 +120,7 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="glass rounded-xl p-4">
+          <div className="glass rounded-xl p-4" data-testid="upcoming-events-panel">
             <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               📅 Upcoming Events
             </h3>
@@ -149,7 +149,7 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="glass rounded-xl p-4">
+          <div className="glass rounded-xl p-4" data-testid="who-to-follow-panel">
             <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               👥 Who to Follow
             </h3>

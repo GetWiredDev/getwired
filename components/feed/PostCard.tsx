@@ -36,7 +36,7 @@ export function PostCard({ post, liked, bookmarked, likeCount, onLike, onBookmar
   const postUrl = `/forums/${post.category ?? "off-topic"}/${post._id}`;
 
   return (
-    <article className="glass group rounded-xl p-4 transition-all duration-200 hover:border-[#3B82F6]/20 hover:glow-green-sm">
+    <article className="glass group rounded-xl p-4 transition-all duration-200 hover:border-[#3B82F6]/20 hover:glow-green-sm" data-testid="post-card" aria-label={`Post by ${post.author.name}`}>
       {post.isBoosted && (
         <div className="mb-2 flex items-center gap-1.5 text-[10px] text-amber-400/70">
           <Sparkles className="size-3" />
@@ -79,21 +79,26 @@ export function PostCard({ post, liked, bookmarked, likeCount, onLike, onBookmar
           size="icon-xs"
           onClick={onLike}
           className={liked ? "text-red-400" : "text-muted-foreground hover:text-red-400"}
+          data-testid="post-like-button"
+          aria-label={liked ? "Unlike post" : "Like post"}
+          aria-pressed={liked}
         >
           <Heart className={`size-3.5 ${liked ? "fill-current" : ""}`} />
         </Button>
-        <span className="mr-2 text-xs text-muted-foreground">{likeCount}</span>
+        <span className="mr-2 text-xs text-muted-foreground" data-testid="post-like-count">{likeCount}</span>
 
         <Link
           href={postUrl}
           className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          data-testid="post-comments-link"
+          aria-label={`${post.commentCount} comments`}
         >
           <MessageCircle className="size-3.5" />
         </Link>
-        <span className="mr-2 text-xs text-muted-foreground">{post.commentCount}</span>
+        <span className="mr-2 text-xs text-muted-foreground" data-testid="post-comment-count">{post.commentCount}</span>
 
         <Eye className="size-3.5 text-muted-foreground" />
-        <span className="mr-2 text-xs text-muted-foreground">{post.views.toLocaleString()}</span>
+        <span className="mr-2 text-xs text-muted-foreground" data-testid="post-view-count">{post.views.toLocaleString()}</span>
 
         <div className="ml-auto flex items-center gap-0.5">
           <ShareButtons url={postUrl} title={post.title} />
@@ -102,6 +107,9 @@ export function PostCard({ post, liked, bookmarked, likeCount, onLike, onBookmar
             size="icon-xs"
             onClick={onBookmark}
             className={bookmarked ? "text-[#3B82F6]" : "text-muted-foreground hover:text-[#3B82F6]"}
+            data-testid="post-bookmark-button"
+            aria-label={bookmarked ? "Remove bookmark" : "Bookmark post"}
+            aria-pressed={bookmarked}
           >
             <Bookmark className={`size-3.5 ${bookmarked ? "fill-current" : ""}`} />
           </Button>

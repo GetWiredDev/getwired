@@ -99,7 +99,7 @@ export function MessageInput({ onSend, mentionOptions = [] }: MessageInputProps)
   }
 
   return (
-    <div className="relative border-t border-border bg-background/80 px-4 py-3">
+    <div className="relative border-t border-border bg-background/80 px-4 py-3" data-testid="message-input-area">
       {/* Mention autocomplete */}
       {showMentions && filteredUsers.length > 0 && (
         <div className="absolute bottom-full left-4 right-4 mb-1 rounded-lg border border-border bg-card shadow-lg overflow-hidden">
@@ -145,6 +145,8 @@ export function MessageInput({ onSend, mentionOptions = [] }: MessageInputProps)
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           placeholder="Type a message..."
+          data-testid="chat-message-input"
+          aria-label="Type a message"
           className={cn(
             "flex-1 border-border/50 bg-secondary/30 focus-visible:ring-[#3B82F6]/30",
             "placeholder:text-muted-foreground/60"
@@ -156,6 +158,8 @@ export function MessageInput({ onSend, mentionOptions = [] }: MessageInputProps)
           disabled={!value.trim()}
           size="icon"
           className="size-8 shrink-0 bg-[#3B82F6] text-white hover:bg-[#2563EB] disabled:opacity-30"
+          data-testid="chat-send-button"
+          aria-label="Send message"
         >
           <SendHorizontal className="size-4" />
         </Button>

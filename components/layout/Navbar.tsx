@@ -47,9 +47,9 @@ export function Navbar() {
   const { user, isSignedIn, signIn, signOut } = useAppAuth();
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 h-14 border-b border-border bg-background/50 backdrop-blur-xl">
+    <nav className="fixed top-0 left-0 right-0 z-50 h-14 border-b border-border bg-background/50 backdrop-blur-xl" data-testid="navbar" aria-label="Main navigation">
       <div className="mx-auto flex h-full max-w-7xl items-center justify-between px-4">
-        <Link href="/" className="flex items-center gap-2 text-lg font-bold tracking-tight">
+        <Link href="/" className="flex items-center gap-2 text-lg font-bold tracking-tight" data-testid="navbar-logo" aria-label="GetWired.dev home">
           <span className="text-foreground">GetWired</span>
           <span className="text-[#3B82F6] text-glow">.dev</span>
           <span className="rounded-full border border-[#3B82F6]/30 bg-[#3B82F6]/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#3B82F6]">
@@ -57,11 +57,13 @@ export function Navbar() {
           </span>
         </Link>
 
-        <div className="hidden items-center gap-1 md:flex">
+        <div className="hidden items-center gap-1 md:flex" data-testid="navbar-links">
           {NAV_LINKS.map((link) => (
             <Link
               key={link.href}
               href={link.href}
+              data-testid={`nav-link-${link.label.toLowerCase()}`}
+              aria-label={`Navigate to ${link.label}`}
               className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >
               <link.icon className="size-4" />
@@ -70,8 +72,8 @@ export function Navbar() {
           ))}
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground" render={<Link href="/search" />}>
+        <div className="flex items-center gap-2" data-testid="navbar-actions">
+          <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground" render={<Link href="/search" />} data-testid="nav-search-button" aria-label="Search">
             <Search className="size-4" />
           </Button>
 
@@ -80,7 +82,7 @@ export function Navbar() {
           {isSignedIn && user ? (
             <UserMenu user={user} onSignOut={signOut} />
           ) : (
-            <Button size="sm" onClick={signIn} className="bg-[#3B82F6] text-white hover:bg-[#3B82F6]/80">
+            <Button size="sm" onClick={signIn} className="bg-[#3B82F6] text-white hover:bg-[#3B82F6]/80" data-testid="sign-in-button" aria-label="Sign in">
               Sign In
             </Button>
           )}
@@ -101,10 +103,10 @@ function UserMenu({
 }) {
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="hidden cursor-pointer rounded-full outline-none md:block">
+      <DropdownMenuTrigger className="hidden cursor-pointer rounded-full outline-none md:block" data-testid="user-menu-trigger" aria-label="User menu">
         <UserAvatar src={user.avatarUrl} name={user.displayName} size="md" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" sideOffset={8} className="w-56 border border-border bg-card">
+      <DropdownMenuContent align="end" sideOffset={8} className="w-56 border border-border bg-card" data-testid="user-menu-content">
         <DropdownMenuLabel className="flex items-center gap-2 px-2 py-2">
           <UserAvatar src={user.avatarUrl} name={user.displayName} size="md" />
           <div className="flex flex-col">
@@ -114,20 +116,20 @@ function UserMenu({
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <Link href={`/profile/${user.username}`}>
-          <DropdownMenuItem className="gap-2 cursor-pointer">
+          <DropdownMenuItem className="gap-2 cursor-pointer" data-testid="user-menu-profile">
             <User className="size-4" /> View Profile
           </DropdownMenuItem>
         </Link>
         <Link href="/bookmarks">
-          <DropdownMenuItem className="gap-2 cursor-pointer">
+          <DropdownMenuItem className="gap-2 cursor-pointer" data-testid="user-menu-bookmarks">
             <Bookmark className="size-4" /> Bookmarks
           </DropdownMenuItem>
         </Link>
-        <DropdownMenuItem className="gap-2 cursor-pointer">
+        <DropdownMenuItem className="gap-2 cursor-pointer" data-testid="user-menu-settings">
           <Settings className="size-4" /> Settings
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem className="gap-2 cursor-pointer text-red-400" onClick={() => void onSignOut()}>
+        <DropdownMenuItem className="gap-2 cursor-pointer text-red-400" onClick={() => void onSignOut()} data-testid="user-menu-signout">
           <LogOut className="size-4" /> Sign Out
         </DropdownMenuItem>
       </DropdownMenuContent>
@@ -138,7 +140,7 @@ function UserMenu({
 function MobileMenu() {
   return (
     <Sheet>
-      <SheetTrigger className="md:hidden">
+      <SheetTrigger className="md:hidden" data-testid="mobile-menu-trigger" aria-label="Open mobile menu">
         <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
           <Menu className="size-5" />
         </Button>
