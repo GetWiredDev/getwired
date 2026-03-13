@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Rnd } from "react-rnd";
 import type { RndDragEvent, DraggableData } from "react-rnd";
 import { cn } from "@/lib/utils";
-import { useWindowManager } from "./useWindowManager";
+import { useWindowManager, APP_REGISTRY } from "./useWindowManager";
 import { WindowTitleBar } from "./WindowTitleBar";
 import type { WindowState } from "./types";
 
@@ -19,6 +19,7 @@ const DESKTOP_INSET = { top: 0, bottom: 0 };
 
 export function AppWindow({ windowState, children }: AppWindowProps) {
   const {
+    openWindow,
     closeWindow,
     minimizeWindow,
     maximizeWindow,
@@ -33,6 +34,61 @@ export function AppWindow({ windowState, children }: AppWindowProps) {
 
   const [refreshKey, setRefreshKey] = useState(0);
   const onRefresh = useCallback(() => setRefreshKey((k) => k + 1), []);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  // Native capture-phase listener to intercept internal links before Next.js handles them
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!el) return;
+
+    function handleClick(e: MouseEvent) {
+      if (e.ctrlKey || e.metaKey || e.shiftKey) return;
+
+      const anchor = (e.target as HTMLElement).closest("a");
+      if (!anchor || anchor.target === "_blank") return;
+
+      const href = anchor.getAttribute("href");
+      if (!href) return;
+      if (href.startsWith("http") || href.startsWith("mailto:") || href.startsWith("tel:") || href.startsWith("#")) return;
+
+      // Map route prefix to appId
+      const ROUTE_TO_APP: Record<string, string> = {
+        "/profile": "profile", "/forums": "forums", "/chat": "chat",
+        "/news": "news", "/discover": "discover", "/marketplace": "marketplace",
+        "/bookmarks": "bookmarks", "/notifications": "notifications",
+        "/search": "search", "/admin": "admin", "/newsletter": "newsletter",
+      };
+
+      let matchedAppId: string | null = null;
+      let context: string | undefined;
+      for (const [prefix, appId] of Object.entries(ROUTE_TO_APP)) {
+        if (href === prefix || href.startsWith(prefix + "/")) {
+          matchedAppId = appId;
+          context = href.slice(prefix.length + 1) || undefined;
+          break;
+        }
+      }
+      if (href === "/") matchedAppId = "feed";
+      if (!matchedAppId || !(matchedAppId in APP_REGISTRY)) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+
+      let title: string | undefined;
+      if (matchedAppId === "profile" && context) title = `Profile — ${context}`;
+      if (matchedAppId === "search" && href.includes("?")) {
+        const params = new URLSearchParams(href.split("?")[1]);
+        const q = params.get("q") || params.get("tag");
+        if (q) title = `Search — ${q}`;
+      }
+
+      openWindow(matchedAppId, title);
+    }
+
+    el.addEventListener("click", handleClick, true);
+    return () => el.removeEventListener("click", handleClick, true);
+  }, [openWindow]);
 
   // Determine if this window is the topmost (focused)
   const isFocused = useMemo(() => {
@@ -118,7 +174,7 @@ export function AppWindow({ windowState, children }: AppWindowProps) {
           onRestore={() => restoreWindow(id)}
           onRefresh={onRefresh}
         />
-        <div className="flex-1 overflow-auto" key={refreshKey}>
+        <div className="flex-1 overflow-auto" key={refreshKey} ref={contentRef}>
           {children}
         </div>
       </div>

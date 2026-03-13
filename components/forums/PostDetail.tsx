@@ -1,14 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { Heart, Bookmark, Share2, Eye, MessageSquare, Calendar, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { UserAvatar } from "@/components/shared/Avatar";
 import { RankBadge } from "@/components/shared/Badge";
+import { useAppAuth } from "@/lib/auth";
+import { toast } from "sonner";
 import { api } from "../../convex/_generated/api";
 
 function formatTimeAgo(ts: number) {
@@ -34,8 +36,13 @@ export function PostDetail({ postId }: { postId: string }) {
     api.posts.listDetailed,
     post?.category ? { category: post.category, limit: 4 } : "skip",
   ) ?? [];
-  const [liked, setLiked] = useState(false);
-  const [bookmarked, setBookmarked] = useState(false);
+  const { isSignedIn, signIn } = useAppAuth();
+  const toggleLike = useMutation(api.posts.toggleLike);
+  const toggleBookmark = useMutation(api.bookmarks.toggleBookmark);
+  const likedPostIds = useQuery(api.posts.getLikedPostIds, isSignedIn ? {} : "skip") ?? [];
+  const bookmarkedPostIds = useQuery(api.bookmarks.getBookmarkedPostIds, isSignedIn ? {} : "skip") ?? [];
+  const liked = likedPostIds.includes(postId as never);
+  const bookmarked = bookmarkedPostIds.includes(postId);
 
   const relatedPosts = useMemo(
     () => relatedSource.filter((candidate) => candidate._id !== postId).slice(0, 3),
@@ -114,14 +121,23 @@ export function PostDetail({ postId }: { postId: string }) {
           <Button
             variant={liked ? "secondary" : "ghost"}
             size="sm"
-            onClick={() => setLiked((current) => !current)}
+            onClick={() => {
+              if (!isSignedIn) {
+                toast.error("Sign in required", {
+                  description: "You need to sign in to like posts.",
+                  action: { label: "Sign In", onClick: signIn },
+                });
+                return;
+              }
+              void toggleLike({ postId: postId as never });
+            }}
             className={`gap-1.5 ${liked ? "text-red-400" : ""}`}
             data-testid="post-detail-like-button"
             aria-label={liked ? "Unlike post" : "Like post"}
             aria-pressed={liked}
           >
             <Heart className={`size-3.5 ${liked ? "fill-current" : ""}`} />
-            {post.likes + (liked ? 1 : 0)}
+            {post.likes}
           </Button>
           <Button variant="ghost" size="sm" className="gap-1.5" data-testid="post-detail-comment-count">
             <MessageSquare className="size-3.5" />
@@ -130,7 +146,16 @@ export function PostDetail({ postId }: { postId: string }) {
           <Button
             variant={bookmarked ? "secondary" : "ghost"}
             size="sm"
-            onClick={() => setBookmarked((current) => !current)}
+            onClick={() => {
+              if (!isSignedIn) {
+                toast.error("Sign in required", {
+                  description: "You need to sign in to bookmark posts.",
+                  action: { label: "Sign In", onClick: signIn },
+                });
+                return;
+              }
+              void toggleBookmark({ targetId: postId, targetType: "post" });
+            }}
             className={`gap-1.5 ${bookmarked ? "text-[#3B82F6]" : ""}`}
             data-testid="post-detail-bookmark-button"
             aria-label={bookmarked ? "Remove bookmark" : "Bookmark post"}
@@ -139,7 +164,22 @@ export function PostDetail({ postId }: { postId: string }) {
             <Bookmark className={`size-3.5 ${bookmarked ? "fill-current" : ""}`} />
             Save
           </Button>
-          <Button variant="ghost" size="sm" className="gap-1.5" data-testid="post-detail-share-button" aria-label="Share post">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-1.5"
+            data-testid="post-detail-share-button"
+            aria-label="Share post"
+            onClick={() => {
+              const url = window.location.href;
+              if (navigator.share) {
+                void navigator.share({ title: post.title, url });
+              } else {
+                void navigator.clipboard.writeText(url);
+                toast.success("Link copied to clipboard!");
+              }
+            }}
+          >
             <Share2 className="size-3.5" />
             Share
           </Button>

@@ -14,28 +14,23 @@ import type {
 // ── App Registry ──────────────────────────────────────────────────────────────
 
 export const APP_REGISTRY: Record<string, AppRegistryEntry> = {
-  feed: { id: "feed", title: "Feed", icon: "Rss", defaultSize: { width: 700, height: 550 } },
-  forums: { id: "forums", title: "Forums", icon: "MessageSquare", defaultSize: { width: 750, height: 600 } },
-  chat: { id: "chat", title: "Chat", icon: "MessagesSquare", defaultSize: { width: 400, height: 500 } },
-  news: { id: "news", title: "News", icon: "Newspaper", defaultSize: { width: 700, height: 550 } },
-  discover: { id: "discover", title: "Discover", icon: "Compass", defaultSize: { width: 700, height: 550 } },
-  marketplace: { id: "marketplace", title: "Amplify", icon: "Rocket", defaultSize: { width: 750, height: 600 } },
-  profile: { id: "profile", title: "Profile", icon: "User", defaultSize: { width: 600, height: 500 } },
-  bookmarks: { id: "bookmarks", title: "Bookmarks", icon: "Bookmark", defaultSize: { width: 500, height: 450 } },
-  notifications: { id: "notifications", title: "Notifications", icon: "Bell", defaultSize: { width: 420, height: 500 } },
-  search: { id: "search", title: "Search", icon: "Search", defaultSize: { width: 600, height: 500 } },
-  admin: { id: "admin", title: "Admin", icon: "Shield", defaultSize: { width: 800, height: 600 } },
-  newsletter: { id: "newsletter", title: "Newsletter", icon: "Mail", defaultSize: { width: 600, height: 500 } },
+  feed: { id: "feed", title: "Feed", icon: "Rss", defaultSize: { width: 680, height: 700 } },
+  forums: { id: "forums", title: "Forums", icon: "MessageSquare", defaultSize: { width: 820, height: 720 } },
+  chat: { id: "chat", title: "Chat", icon: "MessagesSquare", defaultSize: { width: 440, height: 640 } },
+  news: { id: "news", title: "News", icon: "Newspaper", defaultSize: { width: 780, height: 700 } },
+  discover: { id: "discover", title: "Discover", icon: "Compass", defaultSize: { width: 720, height: 740 } },
+  marketplace: { id: "marketplace", title: "Amplify", icon: "Rocket", defaultSize: { width: 820, height: 700 } },
+  profile: { id: "profile", title: "Profile", icon: "User", defaultSize: { width: 640, height: 680 } },
+  bookmarks: { id: "bookmarks", title: "Bookmarks", icon: "Bookmark", defaultSize: { width: 540, height: 580 } },
+  notifications: { id: "notifications", title: "Notifications", icon: "Bell", defaultSize: { width: 440, height: 600 } },
+  search: { id: "search", title: "Search", icon: "Search", defaultSize: { width: 640, height: 580 } },
+  admin: { id: "admin", title: "Admin", icon: "Shield", defaultSize: { width: 880, height: 720 } },
+  newsletter: { id: "newsletter", title: "Newsletter", icon: "Mail", defaultSize: { width: 640, height: 640 } },
 };
 
 // ── LocalStorage Persistence ─────────────────────────────────────────────────
 
 const STORAGE_KEY = "getwired-desktop-layout";
-
-interface PersistedWindowState {
-  id: string;
-  appId: string;
-}
 
 function saveToLocalStorage(state: WindowManagerState): void {
   try {
@@ -51,19 +46,27 @@ function loadFromLocalStorage(): WindowManagerState | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (!parsed.windows || !Array.isArray(parsed.windows)) return null;
-    const validWindows = parsed.windows.filter((windowState: unknown) => {
-      if (
-        !windowState ||
-        typeof windowState !== "object" ||
-        !("id" in windowState) ||
-        !("appId" in windowState)
-      ) {
-        return false;
-      }
 
-      const candidate = windowState as PersistedWindowState;
-      return typeof candidate.id === "string" && candidate.appId in APP_REGISTRY;
-    });
+    const validWindows: WindowState[] = [];
+    for (const w of parsed.windows) {
+      if (!w || typeof w !== "object" || typeof w.id !== "string") continue;
+      const app = APP_REGISTRY[w.appId];
+      if (!app) continue;
+
+      // Merge saved values with registry defaults so resized windows are restored
+      validWindows.push({
+        id: w.id,
+        appId: w.appId,
+        title: w.title ?? app.title,
+        icon: w.icon ?? app.icon,
+        position: w.position ?? getStaggeredPosition(validWindows.length),
+        size: w.size ?? { ...app.defaultSize },
+        zIndex: typeof w.zIndex === "number" ? w.zIndex : validWindows.length + 1,
+        isMinimized: w.isMinimized ?? false,
+        isMaximized: w.isMaximized ?? false,
+      });
+    }
+
     return {
       windows: validWindows,
       nextZIndex: parsed.nextZIndex || validWindows.length + 1,

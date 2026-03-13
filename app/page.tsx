@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { FeedList } from "@/components/feed/FeedList";
 import { PostComposer } from "@/components/feed/PostComposer";
@@ -10,7 +10,9 @@ import { UserAvatar } from "@/components/shared/Avatar";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Flame, Clock, Users, TrendingUp, Calendar, UserPlus } from "lucide-react";
+import { useAppAuth } from "@/lib/auth";
+import { toast } from "sonner";
+import { Flame, Clock, Users, TrendingUp, Calendar, UserPlus, UserCheck } from "lucide-react";
 import { api } from "../convex/_generated/api";
 
 type FeedTab = "hot" | "new" | "following" | "trending";
@@ -30,10 +32,13 @@ const ORG_JSON_LD = {
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<FeedTab>("hot");
+  const { isSignedIn, signIn } = useAppAuth();
   const posts = useQuery(api.posts.listDetailed, { limit: 50 }) ?? [];
   const tagStats = useQuery(api.posts.listTagStats, {}) ?? [];
   const upcomingEvents = useQuery(api.events.getUpcoming, { limit: 3 }) ?? [];
   const suggestedUsers = useQuery(api.users.listSuggestions, { limit: 3 }) ?? [];
+  const followedUserIds = useQuery(api.follows.getFollowedUserIds, isSignedIn ? {} : "skip") ?? [];
+  const toggleFollow = useMutation(api.follows.toggleFollow);
 
   const filteredPosts = useMemo(() => {
     const next = [...posts];
@@ -50,11 +55,13 @@ export default function Home() {
       case "trending":
         return next.sort((left, right) => right.views - left.views);
       case "following":
-        return next.sort((left, right) => right.createdAt - left.createdAt);
+        return next
+          .filter((p) => followedUserIds.includes(p.authorId))
+          .sort((left, right) => right.createdAt - left.createdAt);
       default:
         return next;
     }
-  }, [activeTab, posts]);
+  }, [activeTab, posts, followedUserIds]);
 
   return (
     <div className="mx-auto flex max-w-7xl gap-6 px-4 py-6" data-testid="home-page">
@@ -167,10 +174,25 @@ export default function Home() {
                   <Button
                     variant="outline"
                     size="xs"
-                    className="h-6 shrink-0 gap-1 border-border text-[10px] hover:bg-[#3B82F6]/10 hover:text-[#3B82F6]"
+                    className={`h-6 shrink-0 gap-1 border-border text-[10px] hover:bg-[#3B82F6]/10 hover:text-[#3B82F6] ${
+                      followedUserIds.includes(user._id) ? "bg-[#3B82F6]/10 text-[#3B82F6]" : ""
+                    }`}
+                    onClick={() => {
+                      if (!isSignedIn) {
+                        toast.error("Sign in required", {
+                          description: "You need to sign in to follow users.",
+                          action: { label: "Sign In", onClick: signIn },
+                        });
+                        return;
+                      }
+                      void toggleFollow({ targetId: user._id, targetType: "user" });
+                    }}
                   >
-                    <UserPlus className="size-3" />
-                    Follow
+                    {followedUserIds.includes(user._id) ? (
+                      <><UserCheck className="size-3" />Following</>
+                    ) : (
+                      <><UserPlus className="size-3" />Follow</>
+                    )}
                   </Button>
                 </div>
               ))}

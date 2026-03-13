@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { UserAvatar } from "@/components/shared/Avatar";
 import { RankBadge } from "@/components/shared/Badge";
 import { api } from "../../../convex/_generated/api";
@@ -73,7 +74,41 @@ export function CategoryFeedClient({ slug }: { slug: string }) {
   }, [rawPosts, sortBy]);
 
   if (category === undefined) {
-    return null;
+    return (
+      <div className="mx-auto max-w-4xl px-4 py-6">
+        <div className="mb-4 flex items-center gap-1.5">
+          <Skeleton className="h-3 w-12" />
+          <Skeleton className="size-3" />
+          <Skeleton className="h-3 w-24" />
+        </div>
+        <div className="glass mb-6 rounded-xl p-5">
+          <div className="flex items-center gap-4">
+            <Skeleton className="size-12 rounded-lg" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-5 w-32" />
+              <Skeleton className="h-3 w-48" />
+            </div>
+            <Skeleton className="h-5 w-16" />
+          </div>
+        </div>
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="glass rounded-xl p-4 space-y-3">
+              <div className="flex items-center gap-2.5">
+                <Skeleton className="size-8 rounded-full" />
+                <div className="space-y-1.5">
+                  <Skeleton className="h-3 w-24" />
+                  <Skeleton className="h-2 w-16" />
+                </div>
+              </div>
+              <Skeleton className="h-5 w-3/4" />
+              <Skeleton className="h-3 w-full" />
+              <Skeleton className="h-3 w-5/6" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   }
 
   if (!category) {
@@ -133,7 +168,7 @@ export function CategoryFeedClient({ slug }: { slug: string }) {
             </Button>
           ))}
         </div>
-        <Link href="/">
+        <Link href={`/forums/${slug}/new`}>
           <Button size="sm" className="gap-1.5" data-testid="new-post-button">
             <Plus className="size-3" />
             New Post

@@ -190,10 +190,8 @@ function UserMenu({
 function MobileMenu() {
   return (
     <Sheet>
-      <SheetTrigger className="md:hidden" data-testid="mobile-menu-trigger" aria-label="Open mobile menu">
-        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
-          <Menu className="size-5" />
-        </Button>
+      <SheetTrigger className="md:hidden" data-testid="mobile-menu-trigger" aria-label="Open mobile menu" render={<Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground" />}>
+        <Menu className="size-5" />
       </SheetTrigger>
       <SheetContent side="left" className="w-72 border-r border-border bg-background">
         <SheetHeader>

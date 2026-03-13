@@ -218,6 +218,13 @@ export function CommentTree({ postId }: { postId: string }) {
             depth={0}
             likedComments={likedComments}
             onLike={(id) => {
+              if (!isSignedIn) {
+                toast.error("Sign in required", {
+                  description: "You need to sign in to like comments.",
+                  action: { label: "Sign In", onClick: signIn },
+                });
+                return;
+              }
               setLikedComments((current) => {
                 const next = new Set(current);
                 if (next.has(id)) next.delete(id);

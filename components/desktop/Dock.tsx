@@ -100,11 +100,13 @@ export function Sidebar() {
                 "group relative flex items-center w-full rounded-lg transition-colors duration-150",
                 expanded ? "gap-3 px-3 py-2" : "justify-center px-0 py-2",
                 "hover:bg-white/[0.06]",
-                isRunning && "border-l-2 border-blue-500",
-                !isRunning && "border-l-2 border-transparent",
               )}
               title={app.title}
             >
+              {/* Running indicator dot */}
+              {isRunning && (
+                <span className="absolute left-0 top-1/2 -translate-y-1/2 size-1.5 rounded-full bg-white" />
+              )}
               <Icon
                 className={cn(
                   "size-5 shrink-0 transition-colors",

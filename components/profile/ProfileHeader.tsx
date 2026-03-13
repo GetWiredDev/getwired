@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
+import { useMutation, useQuery } from "convex/react";
 import { Button } from "@/components/ui/button";
 import { UserAvatar } from "@/components/shared/Avatar";
 import { RankBadge } from "@/components/shared/Badge";
+import { useAppAuth } from "@/lib/auth";
+import { toast } from "sonner";
 import {
   MapPin,
   Github,
@@ -20,6 +22,7 @@ import {
   FileText,
 } from "lucide-react";
 import type { UserRank } from "@/lib/types";
+import { api } from "../../convex/_generated/api";
 
 interface ProfileHeaderProps {
   user: {
@@ -48,7 +51,9 @@ const socialLinks = [
 ] as const;
 
 export function ProfileHeader({ user, isOwnProfile }: ProfileHeaderProps) {
-  const [isFollowing, setIsFollowing] = useState(false);
+  const { isSignedIn, signIn } = useAppAuth();
+  const isFollowing = useQuery(api.follows.isFollowing, { targetId: user.username }) ?? false;
+  const toggleFollow = useMutation(api.follows.toggleFollow);
 
   const memberSince = new Date(user.createdAt).toLocaleDateString("en-US", {
     month: "short",
@@ -68,7 +73,16 @@ export function ProfileHeader({ user, isOwnProfile }: ProfileHeaderProps) {
               <Button
                 variant={isFollowing ? "secondary" : "default"}
                 size="sm"
-                onClick={() => setIsFollowing(!isFollowing)}
+                onClick={() => {
+                  if (!isSignedIn) {
+                    toast.error("Sign in required", {
+                      description: "You need to sign in to follow users.",
+                      action: { label: "Sign In", onClick: signIn },
+                    });
+                    return;
+                  }
+                  void toggleFollow({ targetId: user.username, targetType: "user" });
+                }}
                 data-testid="profile-follow-button"
                 aria-label={isFollowing ? "Unfollow user" : "Follow user"}
                 aria-pressed={isFollowing}

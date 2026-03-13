@@ -14,6 +14,7 @@ import type * as chat from "../chat.js";
 import type * as comments from "../comments.js";
 import type * as crons from "../crons.js";
 import type * as events from "../events.js";
+import type * as follows from "../follows.js";
 import type * as forums from "../forums.js";
 import type * as gamification from "../gamification.js";
 import type * as marketplace from "../marketplace.js";
@@ -40,6 +41,7 @@ declare const fullApi: ApiFromModules<{
   comments: typeof comments;
   crons: typeof crons;
   events: typeof events;
+  follows: typeof follows;
   forums: typeof forums;
   gamification: typeof gamification;
   marketplace: typeof marketplace;

@@ -1,12 +1,16 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { useAppAuth } from "@/lib/auth";
+import { toast } from "sonner";
 import {
   Search,
   Plus,
@@ -42,7 +46,13 @@ interface ChatRoomListProps {
 
 export function ChatRoomList({ activeRoomId, onSelectRoom }: ChatRoomListProps) {
   const [search, setSearch] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newRoomName, setNewRoomName] = useState("");
+  const [newRoomDesc, setNewRoomDesc] = useState("");
+  const [newRoomType, setNewRoomType] = useState<"public" | "private">("public");
+  const { isSignedIn, signIn } = useAppAuth();
   const rooms = useQuery(api.chat.listRooms, {}) ?? [];
+  const createRoom = useMutation(api.chat.createRoom);
 
   const filteredRooms = useMemo(() => {
     return rooms.filter((room) => {
@@ -65,9 +75,90 @@ export function ChatRoomList({ activeRoomId, onSelectRoom }: ChatRoomListProps) 
     <div className="flex h-full flex-col border-r border-border bg-card/50" data-testid="chat-room-list" aria-label="Chat rooms">
       <div className="flex items-center justify-between border-b border-border px-3 py-3">
         <h2 className="text-sm font-semibold text-foreground">Chat</h2>
-        <Button variant="ghost" size="icon" className="size-7" disabled>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-7"
+          onClick={() => {
+            if (!isSignedIn) {
+              toast.error("Sign in required", {
+                description: "You need to sign in to create rooms.",
+                action: { label: "Sign In", onClick: signIn },
+              });
+              return;
+            }
+            setCreateOpen(true);
+          }}
+        >
           <Plus className="size-4 text-[#3B82F6]" />
         </Button>
+        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Create Chat Room</DialogTitle>
+            </DialogHeader>
+            <form
+              className="space-y-4"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!newRoomName.trim()) return;
+                try {
+                  const roomId = await createRoom({
+                    name: newRoomName.trim(),
+                    description: newRoomDesc.trim() || undefined,
+                    type: newRoomType,
+                  });
+                  setNewRoomName("");
+                  setNewRoomDesc("");
+                  setCreateOpen(false);
+                  onSelectRoom(roomId);
+                  toast.success("Room created!");
+                } catch {
+                  toast.error("Failed to create room");
+                }
+              }}
+            >
+              <div className="space-y-2">
+                <Label htmlFor="room-name">Room Name</Label>
+                <Input
+                  id="room-name"
+                  value={newRoomName}
+                  onChange={(e) => setNewRoomName(e.target.value)}
+                  placeholder="e.g. general-discussion"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="room-desc">Description (optional)</Label>
+                <Input
+                  id="room-desc"
+                  value={newRoomDesc}
+                  onChange={(e) => setNewRoomDesc(e.target.value)}
+                  placeholder="What is this room about?"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={newRoomType === "public" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setNewRoomType("public")}
+                >
+                  <Hash className="size-3 mr-1" /> Public
+                </Button>
+                <Button
+                  type="button"
+                  variant={newRoomType === "private" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setNewRoomType("private")}
+                >
+                  <Lock className="size-3 mr-1" /> Private
+                </Button>
+              </div>
+              <Button type="submit" className="w-full">Create Room</Button>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className="px-3 py-2">

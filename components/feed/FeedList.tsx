@@ -3,9 +3,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
+import { toast } from "sonner";
 import { PostCard } from "./PostCard";
 import { InfiniteScroll } from "@/components/shared/InfiniteScroll";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAppAuth } from "@/lib/auth";
 import { api } from "../../convex/_generated/api";
 
 interface FeedListProps {
@@ -40,11 +42,12 @@ function PostSkeleton() {
 
 export function FeedList({ posts, isLoading }: FeedListProps) {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const { isSignedIn, signIn } = useAppAuth();
 
   const toggleLike = useMutation(api.posts.toggleLike);
   const toggleBookmark = useMutation(api.bookmarks.toggleBookmark);
-  const likedPostIds = useQuery(api.posts.getLikedPostIds, {}) ?? [];
-  const bookmarkedPostIds = useQuery(api.bookmarks.getBookmarkedPostIds, {}) ?? [];
+  const likedPostIds = useQuery(api.posts.getLikedPostIds, isSignedIn ? {} : "skip") ?? [];
+  const bookmarkedPostIds = useQuery(api.bookmarks.getBookmarkedPostIds, isSignedIn ? {} : "skip") ?? [];
   const likedSet = useMemo(() => new Set(likedPostIds), [likedPostIds]);
   const bookmarkedSet = useMemo(() => new Set(bookmarkedPostIds), [bookmarkedPostIds]);
 
@@ -79,9 +82,23 @@ export function FeedList({ posts, isLoading }: FeedListProps) {
               bookmarked={bookmarkedSet.has(postId)}
               likeCount={post.likes}
               onLike={() => {
+                if (!isSignedIn) {
+                  toast.error("Sign in required", {
+                    description: "You need to sign in to like posts.",
+                    action: { label: "Sign In", onClick: signIn },
+                  });
+                  return;
+                }
                 void toggleLike({ postId });
               }}
               onBookmark={() => {
+                if (!isSignedIn) {
+                  toast.error("Sign in required", {
+                    description: "You need to sign in to bookmark posts.",
+                    action: { label: "Sign In", onClick: signIn },
+                  });
+                  return;
+                }
                 void toggleBookmark({ targetId: postId, targetType: "post" });
               }}
             />
