@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { ClerkProvider, useAuth } from "@clerk/nextjs";
+import { useAuth } from "@clerk/nextjs";
 import { ConvexReactClient, useMutation } from "convex/react";
 import { ConvexProviderWithClerk } from "convex/react-clerk";
 import { WindowManagerProvider } from "@/components/desktop/WindowManager";
@@ -33,16 +33,14 @@ function BootstrapData() {
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
   return (
-    <ClerkProvider signInUrl="/sign-in" signUpUrl="/sign-up" afterSignOutUrl="/">
-      <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
-        <BootstrapData />
-        <AppAuthProvider>
-          <TooltipProvider>
-            <WindowManagerProvider>{children}</WindowManagerProvider>
-            <Toaster />
-          </TooltipProvider>
-        </AppAuthProvider>
-      </ConvexProviderWithClerk>
-    </ClerkProvider>
+    <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
+      <BootstrapData />
+      <AppAuthProvider>
+        <TooltipProvider>
+          <WindowManagerProvider>{children}</WindowManagerProvider>
+          <Toaster />
+        </TooltipProvider>
+      </AppAuthProvider>
+    </ConvexProviderWithClerk>
   );
 }

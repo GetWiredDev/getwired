@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { ClerkProvider } from "@clerk/nextjs";
 
 import { RootShell } from "@/components/layout/RootShell";
 import { AppProviders } from "@/components/providers/AppProviders";
@@ -42,13 +43,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <body
-        className="min-h-screen overflow-x-hidden bg-background text-foreground antialiased"
-      >
-        <AppProviders>
-          <RootShell>{children}</RootShell>
-        </AppProviders>
-      </body>
+      <ClerkProvider signInUrl="/sign-in" signUpUrl="/sign-up" afterSignOutUrl="/">
+        <body
+          className="min-h-screen overflow-x-hidden bg-background text-foreground antialiased"
+        >
+          <AppProviders>
+            <RootShell>{children}</RootShell>
+          </AppProviders>
+        </body>
+      </ClerkProvider>
     </html>
   );
 }
