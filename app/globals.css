@@ -142,6 +142,13 @@
   }
 }
 
+/* Prevent scrolling behind the mobile access gate on small viewports */
+@media (max-width: 1023px) {
+  body {
+    overflow: hidden !important;
+  }
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;

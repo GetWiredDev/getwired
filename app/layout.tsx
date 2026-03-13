@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 
+import { MobileAccessGate } from "@/components/layout/MobileAccessGate";
 import { RootShell } from "@/components/layout/RootShell";
 import { AppProviders } from "@/components/providers/AppProviders";
 import "./globals.css";
@@ -47,9 +48,12 @@ export default function RootLayout({
         <body
           className="min-h-screen overflow-x-hidden bg-background text-foreground antialiased"
         >
-          <AppProviders>
-            <RootShell>{children}</RootShell>
-          </AppProviders>
+          <MobileAccessGate />
+          <div className="hidden lg:block">
+            <AppProviders>
+              <RootShell>{children}</RootShell>
+            </AppProviders>
+          </div>
         </body>
       </ClerkProvider>
     </html>
