@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
 import { PostCard } from "./PostCard";
+import { FeedPostDialog } from "./FeedPostDialog";
 import { InfiniteScroll } from "@/components/shared/InfiniteScroll";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAppAuth } from "@/lib/auth";
@@ -42,17 +43,22 @@ function PostSkeleton() {
 
 export function FeedList({ posts, isLoading }: FeedListProps) {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
   const { isSignedIn, signIn } = useAppAuth();
 
   const toggleLike = useMutation(api.posts.toggleLike);
   const toggleBookmark = useMutation(api.bookmarks.toggleBookmark);
-  const likedPostIds = useQuery(api.posts.getLikedPostIds, isSignedIn ? {} : "skip") ?? [];
-  const bookmarkedPostIds = useQuery(api.bookmarks.getBookmarkedPostIds, isSignedIn ? {} : "skip") ?? [];
-  const likedSet = useMemo(() => new Set(likedPostIds), [likedPostIds]);
-  const bookmarkedSet = useMemo(() => new Set(bookmarkedPostIds), [bookmarkedPostIds]);
+  const likedPostIds = useQuery(api.posts.getLikedPostIds, isSignedIn ? {} : "skip");
+  const bookmarkedPostIds = useQuery(api.bookmarks.getBookmarkedPostIds, isSignedIn ? {} : "skip");
+  const likedSet = useMemo(() => new Set(likedPostIds ?? []), [likedPostIds]);
+  const bookmarkedSet = useMemo(() => new Set(bookmarkedPostIds ?? []), [bookmarkedPostIds]);
 
   const visiblePosts = useMemo(() => posts.slice(0, visibleCount), [posts, visibleCount]);
   const hasMore = visibleCount < posts.length;
+  const selectedPost = useMemo(
+    () => posts.find((post) => post._id === selectedPostId && !post.category) ?? null,
+    [posts, selectedPostId],
+  );
 
   if (isLoading) {
     return (
@@ -81,6 +87,11 @@ export function FeedList({ posts, isLoading }: FeedListProps) {
               liked={likedSet.has(postId)}
               bookmarked={bookmarkedSet.has(postId)}
               likeCount={post.likes}
+              onOpenPost={() => {
+                if (!post.category) {
+                  setSelectedPostId(postId);
+                }
+              }}
               onLike={() => {
                 if (!isSignedIn) {
                   toast.error("Sign in required", {
@@ -105,6 +116,17 @@ export function FeedList({ posts, isLoading }: FeedListProps) {
           );
         })}
       </div>
+      {selectedPost && (
+        <FeedPostDialog
+          post={selectedPost}
+          open={Boolean(selectedPost)}
+          onOpenChange={(open) => {
+            if (!open) {
+              setSelectedPostId(null);
+            }
+          }}
+        />
+      )}
     </InfiniteScroll>
   );
 }

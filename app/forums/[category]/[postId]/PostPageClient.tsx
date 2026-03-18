@@ -1,10 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { useQuery } from "convex/react";
 import { PostDetail } from "@/components/forums/PostDetail";
 import { CommentTree } from "@/components/forums/CommentTree";
+import { ForumsLink } from "@/components/forums/ForumsNavigation";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "../../../../convex/_generated/api";
 
@@ -64,9 +64,9 @@ export function PostPageClient({ categorySlug, postId }: PostPageClientProps) {
     return (
       <div className="mx-auto max-w-4xl px-4 py-12 text-center text-muted-foreground">
         <p className="text-sm">Post not found</p>
-        <Link href="/forums" className="mt-2 inline-block text-sm text-[#3B82F6] hover:underline">
+        <ForumsLink href="/forums" className="mt-2 inline-block text-sm text-[#3B82F6] hover:underline">
           Back to Forums
-        </Link>
+        </ForumsLink>
       </div>
     );
   }
@@ -74,15 +74,15 @@ export function PostPageClient({ categorySlug, postId }: PostPageClientProps) {
   return (
     <div className="mx-auto max-w-4xl px-4 py-6" data-testid="post-detail-page">
           <nav className="mb-4 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground" data-testid="breadcrumb" aria-label="Breadcrumb">
-            <Link href="/forums" className="transition-colors hover:text-foreground">
+            <ForumsLink href="/forums" className="transition-colors hover:text-foreground">
               Forums
-            </Link>
+            </ForumsLink>
             <ChevronRight className="size-3" />
             {category && (
               <>
-                <Link href={`/forums/${category.slug}`} className="transition-colors hover:text-foreground">
+                <ForumsLink href={`/forums/${category.slug}`} className="transition-colors hover:text-foreground">
                   {category.name}
-                </Link>
+                </ForumsLink>
                 <ChevronRight className="size-3" />
               </>
             )}

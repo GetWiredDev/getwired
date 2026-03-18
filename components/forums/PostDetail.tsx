@@ -3,12 +3,13 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import { useMutation, useQuery } from "convex/react";
-import { Heart, Bookmark, Share2, Eye, MessageSquare, Calendar, MapPin } from "lucide-react";
+import { Heart, Bookmark, Share2, Eye, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { UserAvatar } from "@/components/shared/Avatar";
 import { RankBadge } from "@/components/shared/Badge";
+import { ForumsLink } from "@/components/forums/ForumsNavigation";
 import { useAppAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { api } from "../../convex/_generated/api";
@@ -22,20 +23,12 @@ function formatTimeAgo(ts: number) {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
-function formatDate(ts: number) {
-  return new Date(ts).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
 export function PostDetail({ postId }: { postId: string }) {
   const post = useQuery(api.posts.getDetailedById, { postId: postId as never });
   const relatedSource = useQuery(
     api.posts.listDetailed,
     post?.category ? { category: post.category, limit: 4 } : "skip",
-  ) ?? [];
+  );
   const { isSignedIn, signIn } = useAppAuth();
   const toggleLike = useMutation(api.posts.toggleLike);
   const toggleBookmark = useMutation(api.bookmarks.toggleBookmark);
@@ -45,7 +38,7 @@ export function PostDetail({ postId }: { postId: string }) {
   const bookmarked = bookmarkedPostIds.includes(postId);
 
   const relatedPosts = useMemo(
-    () => relatedSource.filter((candidate) => candidate._id !== postId).slice(0, 3),
+    () => (relatedSource ?? []).filter((candidate) => candidate._id !== postId).slice(0, 3),
     [postId, relatedSource],
   );
 
@@ -62,7 +55,7 @@ export function PostDetail({ postId }: { postId: string }) {
       <div className="glass rounded-xl p-6">
         <div className="mb-4 flex flex-wrap items-center gap-2">
           {post.categoryInfo && (
-            <Link href={`/forums/${post.categoryInfo.slug}`}>
+            <ForumsLink href={`/forums/${post.categoryInfo.slug}`}>
               <Badge
                 variant="secondary"
                 className="text-[10px]"
@@ -73,7 +66,7 @@ export function PostDetail({ postId }: { postId: string }) {
               >
                 {post.categoryInfo.name}
               </Badge>
-            </Link>
+            </ForumsLink>
           )}
           {post.tags.map((tag: string) => (
             <Badge key={tag} variant="secondary" className="text-[10px]">
@@ -90,7 +83,9 @@ export function PostDetail({ postId }: { postId: string }) {
         <h1 className="mb-4 text-xl font-bold text-foreground">{post.title}</h1>
 
         <div className="mb-6 flex items-center gap-3">
-          <UserAvatar src={post.author.avatar} name={post.author.name} size="md" />
+          <Link href={`/profile/${post.author.username}`} className="shrink-0">
+            <UserAvatar src={post.author.avatar} name={post.author.name} size="md" />
+          </Link>
           <div>
             <div className="flex items-center gap-2">
               <Link
@@ -186,50 +181,12 @@ export function PostDetail({ postId }: { postId: string }) {
         </div>
       </div>
 
-      <div className="glass rounded-xl p-5">
-        <div className="mb-3 flex items-center gap-3">
-          <UserAvatar src={post.author.avatar} name={post.author.name} size="lg" />
-          <div>
-            <Link
-              href={`/profile/${post.author.username}`}
-              className="text-sm font-semibold text-foreground transition-colors hover:text-[#3B82F6]"
-            >
-              {post.author.name}
-            </Link>
-            <div className="mt-0.5 flex items-center gap-1.5">
-              <RankBadge rank={post.author.rank} />
-              <span className="text-[10px] text-muted-foreground">
-                {post.author.karma.toLocaleString()} karma
-              </span>
-            </div>
-          </div>
-        </div>
-        {post.author.bio && (
-          <p className="mb-3 line-clamp-3 text-xs text-muted-foreground">{post.author.bio}</p>
-        )}
-        <div className="mb-3 flex items-center gap-4 text-[10px] text-muted-foreground">
-          {post.author.location && (
-            <span className="flex items-center gap-1">
-              <MapPin className="size-3" /> {post.author.location}
-            </span>
-          )}
-          <span className="flex items-center gap-1">
-            <Calendar className="size-3" /> Joined {formatDate(post.author.createdAt)}
-          </span>
-        </div>
-        <Link href={`/profile/${post.author.username}`}>
-          <Button variant="outline" size="sm" className="w-full">
-            View Profile
-          </Button>
-        </Link>
-      </div>
-
       {relatedPosts.length > 0 && (
         <div className="glass rounded-xl p-5" data-testid="related-posts">
           <h3 className="mb-3 text-sm font-semibold text-foreground">Related Posts</h3>
           <div className="space-y-3">
             {relatedPosts.map((relatedPost) => (
-              <Link
+              <ForumsLink
                 key={relatedPost._id}
                 href={`/forums/${relatedPost.category ?? "off-topic"}/${relatedPost._id}`}
                 className="group block"
@@ -249,7 +206,7 @@ export function PostDetail({ postId }: { postId: string }) {
                     </span>
                   </div>
                 </div>
-              </Link>
+              </ForumsLink>
             ))}
           </div>
         </div>

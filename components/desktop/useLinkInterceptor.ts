@@ -65,7 +65,8 @@ export function useLinkInterceptor() {
       if (href.startsWith("#")) return;
 
       // Parse the internal route
-      const parsed = parseRoute(href);
+      const url = new URL(href, window.location.origin);
+      const parsed = parseRoute(url.pathname);
       if (!parsed) return;
 
       // Prevent default navigation
@@ -77,17 +78,16 @@ export function useLinkInterceptor() {
       if (parsed.appId === "profile" && parsed.context) {
         title = `Profile — ${parsed.context}`;
       }
-      if (parsed.appId === "search" && href.includes("?")) {
-        const params = new URLSearchParams(href.split("?")[1]);
+      if (parsed.appId === "search" && url.search) {
+        const params = new URLSearchParams(url.search);
         const q = params.get("q") || params.get("tag");
         if (q) title = `Search — ${q}`;
       }
 
-      openWindow(parsed.appId, title);
+      openWindow(parsed.appId, { title, context: parsed.context });
     },
     [openWindow],
   );
 
   return handleClick;
 }
-

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
 import {
   ChevronRight,
@@ -29,6 +29,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UserAvatar } from "@/components/shared/Avatar";
 import { RankBadge } from "@/components/shared/Badge";
+import { ForumPostComposer } from "@/components/forums/ForumPostComposer";
+import { ForumsLink, useForumsNav } from "@/components/forums/ForumsNavigation";
 import { api } from "../../../convex/_generated/api";
 
 const iconMap: Record<string, LucideIcon> = {
@@ -55,12 +57,15 @@ function formatTimeAgo(ts: number) {
 
 export function CategoryFeedClient({ slug }: { slug: string }) {
   const [sortBy, setSortBy] = useState<SortOption>("hot");
+  const [isComposing, setIsComposing] = useState(false);
+  const router = useRouter();
+  const forumsNav = useForumsNav();
   const category = useQuery(api.forums.getCategoryBySlug, { slug });
-  const rawPosts = useQuery(api.posts.listDetailed, { category: slug, limit: 100 }) ?? [];
+  const rawPosts = useQuery(api.posts.listDetailed, { category: slug, limit: 100 });
   const Icon = category ? iconMap[category.icon] ?? Brain : Brain;
 
   const posts = useMemo(() => {
-    const next = [...rawPosts];
+    const next = [...(rawPosts ?? [])];
     switch (sortBy) {
       case "hot":
         return next.sort((left, right) => right.likes - left.likes);
@@ -122,9 +127,9 @@ export function CategoryFeedClient({ slug }: { slug: string }) {
   return (
     <div className="mx-auto max-w-4xl px-4 py-6" data-testid="category-feed-page">
       <nav className="mb-4 flex items-center gap-1.5 text-xs text-muted-foreground" data-testid="breadcrumb" aria-label="Breadcrumb">
-        <Link href="/forums" className="transition-colors hover:text-foreground">
+        <ForumsLink href="/forums" className="transition-colors hover:text-foreground">
           Forums
-        </Link>
+        </ForumsLink>
         <ChevronRight className="size-3" />
         <span className="text-foreground">{category.name}</span>
       </nav>
@@ -168,17 +173,43 @@ export function CategoryFeedClient({ slug }: { slug: string }) {
             </Button>
           ))}
         </div>
-        <Link href={`/forums/${slug}/new`}>
-          <Button size="sm" className="gap-1.5" data-testid="new-post-button">
-            <Plus className="size-3" />
-            New Post
-          </Button>
-        </Link>
+        <Button
+          size="sm"
+          className="gap-1.5"
+          data-testid="new-post-button"
+          onClick={() => setIsComposing((current) => !current)}
+          aria-pressed={isComposing}
+        >
+          <Plus className="size-3" />
+          {isComposing ? "Close" : "New Post"}
+        </Button>
       </div>
+
+      {isComposing && (
+        <ForumPostComposer
+          categoryName={category.name}
+          categorySlug={slug}
+          onCancel={() => setIsComposing(false)}
+          onCreated={(postId) => {
+            setIsComposing(false);
+            if (forumsNav) {
+              forumsNav.navigate({ kind: "post", categorySlug: slug, postId });
+              return;
+            }
+
+            router.push(`/forums/${slug}/${postId}`);
+          }}
+        />
+      )}
 
       <div className="space-y-3" data-testid="category-post-list">
         {posts.map((post) => (
-          <Link key={post._id} href={`/forums/${slug}/${post._id}`} className="group block" data-testid="category-post-item">
+          <ForumsLink
+            key={post._id}
+            href={`/forums/${slug}/${post._id}`}
+            className="group block"
+            data-testid="category-post-item"
+          >
             <div className="glass rounded-xl p-4 transition-all hover:glow-green-sm">
               <div className="flex items-start gap-3">
                 <UserAvatar src={post.author.avatar} name={post.author.name} size="sm" />
@@ -223,7 +254,7 @@ export function CategoryFeedClient({ slug }: { slug: string }) {
                 </div>
               </div>
             </div>
-          </Link>
+          </ForumsLink>
         ))}
       </div>
 

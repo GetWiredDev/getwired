@@ -100,7 +100,11 @@ export function MenuBar() {
                   </div>
                 </div>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="gap-2 cursor-pointer" onClick={() => openWindow("profile")} data-testid="user-menu-profile">
+                <DropdownMenuItem
+                  className="gap-2 cursor-pointer"
+                  onClick={() => openWindow("profile", { title: `Profile — ${user.username}`, context: user.username })}
+                  data-testid="user-menu-profile"
+                >
                   <User className="size-4" /> View Profile
                 </DropdownMenuItem>
                 <DropdownMenuItem className="gap-2 cursor-pointer" onClick={() => openWindow("bookmarks")} data-testid="user-menu-bookmarks">

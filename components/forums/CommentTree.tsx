@@ -1,6 +1,7 @@
 "use client";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { Heart, MessageSquare, ChevronDown, ChevronUp } from "lucide-react";
@@ -62,8 +63,15 @@ function CommentNode({
       {!collapsed ? (
         <div className="py-2">
           <div className="mb-1 flex items-center gap-2">
-            <UserAvatar src={comment.author.avatar} name={comment.author.name} size="sm" />
-            <span className="text-xs font-medium text-foreground">{comment.author.name}</span>
+            <Link href={`/profile/${comment.author.username}`} className="shrink-0">
+              <UserAvatar src={comment.author.avatar} name={comment.author.name} size="sm" />
+            </Link>
+            <Link
+              href={`/profile/${comment.author.username}`}
+              className="text-xs font-medium text-foreground transition-colors hover:text-[#3B82F6]"
+            >
+              {comment.author.name}
+            </Link>
             <RankBadge rank={comment.author.rank} />
             <span className="text-[10px] text-muted-foreground">{formatTimeAgo(comment.createdAt)}</span>
             <button
@@ -111,17 +119,23 @@ function CommentNode({
           )}
         </div>
       ) : (
-        <button
-          onClick={() => setCollapsed(false)}
-          className="flex items-center gap-2 py-2 text-xs text-muted-foreground hover:text-foreground"
-        >
-          <ChevronDown className="size-3.5" />
-          <UserAvatar src={comment.author.avatar} name={comment.author.name} size="sm" />
-          <span>{comment.author.name}</span>
+        <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
+          <button onClick={() => setCollapsed(false)} className="hover:text-foreground">
+            <ChevronDown className="size-3.5" />
+          </button>
+          <Link href={`/profile/${comment.author.username}`} className="shrink-0">
+            <UserAvatar src={comment.author.avatar} name={comment.author.name} size="sm" />
+          </Link>
+          <Link
+            href={`/profile/${comment.author.username}`}
+            className="transition-colors hover:text-[#3B82F6]"
+          >
+            {comment.author.name}
+          </Link>
           <span>
             · {children.length} {children.length === 1 ? "reply" : "replies"}
           </span>
-        </button>
+        </div>
       )}
       {!collapsed &&
         children.map((child) => (

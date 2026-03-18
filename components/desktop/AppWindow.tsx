@@ -46,10 +46,13 @@ export function AppWindow({ windowState, children }: AppWindowProps) {
 
       const anchor = (e.target as HTMLElement).closest("a");
       if (!anchor || anchor.target === "_blank") return;
+      if (anchor.dataset.localForumsNav === "true") return;
 
       const href = anchor.getAttribute("href");
       if (!href) return;
       if (href.startsWith("http") || href.startsWith("mailto:") || href.startsWith("tel:") || href.startsWith("#")) return;
+      const url = new URL(href, window.location.origin);
+      const pathname = url.pathname;
 
       // Map route prefix to appId
       const ROUTE_TO_APP: Record<string, string> = {
@@ -62,13 +65,13 @@ export function AppWindow({ windowState, children }: AppWindowProps) {
       let matchedAppId: string | null = null;
       let context: string | undefined;
       for (const [prefix, appId] of Object.entries(ROUTE_TO_APP)) {
-        if (href === prefix || href.startsWith(prefix + "/")) {
+        if (pathname === prefix || pathname.startsWith(prefix + "/")) {
           matchedAppId = appId;
-          context = href.slice(prefix.length + 1) || undefined;
+          context = pathname.slice(prefix.length + 1) || undefined;
           break;
         }
       }
-      if (href === "/") matchedAppId = "feed";
+      if (pathname === "/") matchedAppId = "feed";
       if (!matchedAppId || !(matchedAppId in APP_REGISTRY)) return;
 
       e.preventDefault();
@@ -77,13 +80,13 @@ export function AppWindow({ windowState, children }: AppWindowProps) {
 
       let title: string | undefined;
       if (matchedAppId === "profile" && context) title = `Profile — ${context}`;
-      if (matchedAppId === "search" && href.includes("?")) {
-        const params = new URLSearchParams(href.split("?")[1]);
+      if (matchedAppId === "search" && url.search) {
+        const params = new URLSearchParams(url.search);
         const q = params.get("q") || params.get("tag");
         if (q) title = `Search — ${q}`;
       }
 
-      openWindow(matchedAppId, title);
+      openWindow(matchedAppId, { title, context });
     }
 
     el.addEventListener("click", handleClick, true);

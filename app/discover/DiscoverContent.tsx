@@ -42,24 +42,28 @@ export function DiscoverContent() {
               </CardHeader>
               <CardContent className="space-y-3">
                 {trendingPosts.map((post, index) => (
-                  <Link
+                  <div
                     key={post._id}
-                    href={`/forums/${post.category ?? "off-topic"}/${post._id}`}
                     className="group flex gap-3 rounded-lg p-2 transition-colors hover:bg-accent"
                   >
                     <span className="w-6 shrink-0 text-center text-lg font-bold text-muted-foreground/40">
                       {index + 1}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="line-clamp-2 text-sm font-medium leading-snug transition-colors group-hover:text-[#3B82F6]">
-                        {post.title}
-                      </p>
+                      <Link href={`/forums/${post.category ?? "off-topic"}/${post._id}`} className="block">
+                        <p className="line-clamp-2 text-sm font-medium leading-snug transition-colors group-hover:text-[#3B82F6]">
+                          {post.title}
+                        </p>
+                      </Link>
                       <div className="mt-1.5 flex items-center gap-3">
-                        <div className="flex items-center gap-1.5">
+                        <Link
+                          href={`/profile/${post.author.username}`}
+                          className="flex items-center gap-1.5 transition-colors hover:text-[#3B82F6]"
+                        >
                           <UserAvatar src={post.author.avatar} name={post.author.name} size="sm" />
                           <span className="text-xs text-muted-foreground">{post.author.name}</span>
                           <RankBadge rank={post.author.rank} />
-                        </div>
+                        </Link>
                         <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
                           <span className="flex items-center gap-0.5">
                             <Heart className="size-3" /> {post.likes}
@@ -73,7 +77,7 @@ export function DiscoverContent() {
                         </div>
                       </div>
                     </div>
-                  </Link>
+                  </div>
                 ))}
               </CardContent>
             </Card>

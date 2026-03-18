@@ -64,23 +64,24 @@ function PlaceholderContent({ appId, title }: { appId: string; title: string }) 
 interface AppContentProps {
   appId: string;
   title: string;
+  context?: string;
 }
 
 /**
  * Maps an appId from the window manager registry to the actual page content.
  * Each content component is wrapped to fit inside a window (full height, scrollable).
  */
-export function AppContent({ appId, title }: AppContentProps) {
+export function AppContent({ appId, title, context }: AppContentProps) {
   return (
     <Suspense fallback={<WindowLoading />}>
       <div className="h-full overflow-auto">
-        {renderContent(appId, title)}
+        {renderContent(appId, title, context)}
       </div>
     </Suspense>
   );
 }
 
-function renderContent(appId: string, title: string): React.ReactNode {
+function renderContent(appId: string, title: string, context?: string): React.ReactNode {
   switch (appId) {
     case "feed":
       return <FeedApp />;
@@ -93,7 +94,7 @@ function renderContent(appId: string, title: string): React.ReactNode {
     case "discover":
       return <DiscoverApp />;
     case "profile":
-      return <ProfileApp />;
+      return <ProfileApp userId={context} />;
     case "bookmarks":
       return <BookmarksApp />;
     case "notifications":

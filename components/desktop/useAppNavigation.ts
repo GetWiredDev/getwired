@@ -2,6 +2,7 @@
 
 import { useCallback } from "react";
 import { useWindowManager } from "./useWindowManager";
+import type { OpenWindowOptions } from "./types";
 
 /**
  * Hook for navigating between apps inside the desktop window system.
@@ -11,12 +12,11 @@ export function useAppNavigation() {
   const { openWindow } = useWindowManager();
 
   const navigateToApp = useCallback(
-    (appId: string, title?: string) => {
-      openWindow(appId, title);
+    (appId: string, options?: OpenWindowOptions) => {
+      openWindow(appId, options);
     },
     [openWindow],
   );
 
   return { navigateToApp };
 }
-

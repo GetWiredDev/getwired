@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import {
   Brain,
   Globe,
@@ -13,6 +12,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { ForumsLink } from "@/components/forums/ForumsNavigation";
 
 const iconMap: Record<string, LucideIcon> = {
   Brain,
@@ -49,7 +49,12 @@ export function CategoryCard({
   const Icon = iconMap[icon] ?? Brain;
 
   return (
-    <Link href={`/forums/${slug}`} className="group block" data-testid={`forum-category-${slug}`} aria-label={`${name} forum — ${postCount} posts`}>
+    <ForumsLink
+      href={`/forums/${slug}`}
+      className="group block"
+      data-testid={`forum-category-${slug}`}
+      aria-label={`${name} forum — ${postCount} posts`}
+    >
       <div
         className="glass rounded-xl p-5 transition-all duration-300 hover:glow-green-sm"
         style={{
@@ -92,6 +97,6 @@ export function CategoryCard({
           </div>
         </div>
       </div>
-    </Link>
+    </ForumsLink>
   );
 }

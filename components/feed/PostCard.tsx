@@ -2,8 +2,9 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import Link from "next/link";
-import { Heart, MessageCircle, Eye, Bookmark, Sparkles } from "lucide-react";
+import { Heart, MessageCircle, Eye, Bookmark, Sparkles, MessagesSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { UserAvatar } from "@/components/shared/Avatar";
 import { RankBadge } from "@/components/shared/Badge";
 import { ShareButtons } from "@/components/shared/ShareButtons";
@@ -17,6 +18,7 @@ interface PostCardProps {
   likeCount: number;
   onLike: () => void;
   onBookmark: () => void;
+  onOpenPost: () => void;
 }
 
 function formatRelativeTime(timestamp: number) {
@@ -31,9 +33,11 @@ function formatRelativeTime(timestamp: number) {
   return `${Math.floor(days / 30)}mo ago`;
 }
 
-export function PostCard({ post, liked, bookmarked, likeCount, onLike, onBookmark }: PostCardProps) {
+export function PostCard({ post, liked, bookmarked, likeCount, onLike, onBookmark, onOpenPost }: PostCardProps) {
   const contentPreview = post.content.length > 200 ? `${post.content.slice(0, 200)}...` : post.content;
   const postUrl = `/forums/${post.category ?? "off-topic"}/${post._id}`;
+  const isForumThread = Boolean(post.category);
+  const categoryLabel = post.categoryInfo?.name ?? post.category?.replace(/-/g, " ");
 
   return (
     <article className="glass group rounded-xl p-4 transition-all duration-200 hover:border-[#3B82F6]/20 hover:glow-green-sm" data-testid="post-card" aria-label={`Post by ${post.author.name}`}>
@@ -45,9 +49,16 @@ export function PostCard({ post, liked, bookmarked, likeCount, onLike, onBookmar
       )}
 
       <div className="mb-3 flex items-center gap-2.5">
-        <UserAvatar src={post.author.avatar} name={post.author.name} size="md" />
+        <Link href={`/profile/${post.author.username}`} className="shrink-0">
+          <UserAvatar src={post.author.avatar} name={post.author.name} size="md" />
+        </Link>
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <span className="truncate text-sm font-medium text-foreground">{post.author.name}</span>
+          <Link
+            href={`/profile/${post.author.username}`}
+            className="min-w-0 truncate text-sm font-medium text-foreground transition-colors hover:text-[#3B82F6]"
+          >
+            {post.author.name}
+          </Link>
           <RankBadge rank={post.author.rank} />
           <span className="ml-auto shrink-0 text-xs text-muted-foreground">
             {formatRelativeTime(post.createdAt)}
@@ -55,11 +66,43 @@ export function PostCard({ post, liked, bookmarked, likeCount, onLike, onBookmar
         </div>
       </div>
 
-      <Link href={postUrl} className="mb-3 block">
-        <p className="line-clamp-4 text-sm leading-relaxed text-muted-foreground group-hover:text-foreground transition-colors">
-          {contentPreview}
-        </p>
-      </Link>
+      {isForumThread ? (
+        <Link href={postUrl} className="mb-3 block">
+          <div className="mb-2 flex flex-wrap items-center gap-1.5">
+            <Badge
+              variant="secondary"
+              className="border-[#3B82F6]/30 bg-[#3B82F6]/10 text-[10px] text-[#3B82F6]"
+            >
+              <MessagesSquare className="mr-1 size-3" />
+              Forum Thread
+            </Badge>
+            {categoryLabel && (
+              <Badge variant="secondary" className="text-[10px] capitalize">
+                {categoryLabel}
+              </Badge>
+            )}
+          </div>
+          {post.title && (
+            <h3 className="mb-1 line-clamp-2 text-sm font-semibold text-foreground transition-colors group-hover:text-[#3B82F6]">
+              {post.title}
+            </h3>
+          )}
+          <p className="line-clamp-4 text-sm leading-relaxed text-muted-foreground group-hover:text-foreground transition-colors">
+            {contentPreview}
+          </p>
+        </Link>
+      ) : (
+        <button type="button" onClick={onOpenPost} className="mb-3 block w-full text-left">
+          <div className="mb-2 flex flex-wrap items-center gap-1.5">
+            <Badge variant="secondary" className="text-[10px]">
+              Social Post
+            </Badge>
+          </div>
+          <p className="line-clamp-4 text-sm leading-relaxed text-muted-foreground transition-colors group-hover:text-foreground">
+            {contentPreview}
+          </p>
+        </button>
+      )}
 
       {post.poll && (
         <div className="mb-3">
@@ -87,14 +130,27 @@ export function PostCard({ post, liked, bookmarked, likeCount, onLike, onBookmar
         </Button>
         <span className="mr-2 text-xs text-muted-foreground" data-testid="post-like-count">{likeCount}</span>
 
-        <Link
-          href={postUrl}
-          className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          data-testid="post-comments-link"
-          aria-label={`${post.commentCount} comments`}
-        >
-          <MessageCircle className="size-3.5" />
-        </Link>
+        {isForumThread ? (
+          <Link
+            href={postUrl}
+            className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            data-testid="post-comments-link"
+            aria-label={`${post.commentCount} comments`}
+          >
+            <MessageCircle className="size-3.5" />
+          </Link>
+        ) : (
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            onClick={onOpenPost}
+            className="text-muted-foreground hover:text-foreground"
+            data-testid="post-comments-link"
+            aria-label={`${post.commentCount} comments`}
+          >
+            <MessageCircle className="size-3.5" />
+          </Button>
+        )}
         <span className="mr-2 text-xs text-muted-foreground" data-testid="post-comment-count">{post.commentCount}</span>
 
         <Eye className="size-3.5 text-muted-foreground" />

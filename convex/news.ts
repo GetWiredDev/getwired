@@ -4,17 +4,46 @@ import { action, internalAction, internalMutation, internalQuery, query } from "
 
 const MAX_SUMMARY_LENGTH = 320;
 
+const HTML_ENTITY_MAP: Record<string, string> = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  nbsp: " ",
+  rsquo: "’",
+  lsquo: "‘",
+  rdquo: "”",
+  ldquo: "“",
+  ndash: "–",
+  mdash: "—",
+  hellip: "…",
+};
+
 function decodeHtml(value: string) {
-  return value
-    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
-    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(Number(dec)));
+  let decoded = value.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1");
+
+  for (let pass = 0; pass < 3; pass += 1) {
+    const next = decoded.replace(/&(#x[0-9a-fA-F]+|#\d+|[a-zA-Z][a-zA-Z0-9]+);/g, (entity, token) => {
+      if (token.startsWith("#x")) {
+        return String.fromCodePoint(parseInt(token.slice(2), 16));
+      }
+
+      if (token.startsWith("#")) {
+        return String.fromCodePoint(Number(token.slice(1)));
+      }
+
+      return HTML_ENTITY_MAP[token] ?? HTML_ENTITY_MAP[token.toLowerCase()] ?? entity;
+    });
+
+    if (next === decoded) {
+      break;
+    }
+
+    decoded = next;
+  }
+
+  return decoded;
 }
 
 function stripHtml(value: string) {
@@ -132,6 +161,18 @@ function parseFeed(xml: string) {
     .slice(0, 25);
 }
 
+function normalizeArticleText<T extends { title: string; summary: string; url: string; externalId?: string }>(
+  article: T,
+): T {
+  return {
+    ...article,
+    externalId: article.externalId ? stripHtml(article.externalId) : article.externalId,
+    title: stripHtml(article.title),
+    summary: stripHtml(article.summary),
+    url: stripHtml(article.url),
+  };
+}
+
 export const list = query({
   args: {
     limit: v.optional(v.number()),
@@ -151,7 +192,9 @@ export const list = query({
           .order("desc")
           .take(limit);
 
-    return articles.filter((article) => !article.isDemo);
+    return articles
+      .filter((article) => !article.isDemo)
+      .map((article) => normalizeArticleText(article));
   },
 });
 
@@ -206,26 +249,27 @@ export const upsertArticles = internalMutation({
   },
   handler: async (ctx, args) => {
     for (const article of args.articles) {
+      const normalizedArticle = normalizeArticleText(article);
       const existing =
         (await ctx.db
           .query("newsArticles")
-          .withIndex("by_externalId", (q) => q.eq("externalId", article.externalId))
+          .withIndex("by_externalId", (q) => q.eq("externalId", normalizedArticle.externalId))
           .first()) ??
         (await ctx.db
           .query("newsArticles")
-          .withIndex("by_url", (q) => q.eq("url", article.url))
+          .withIndex("by_url", (q) => q.eq("url", normalizedArticle.url))
           .first());
 
       if (existing) {
         await ctx.db.patch(existing._id, {
           feedId: args.feedId,
-          title: article.title,
-          url: article.url,
+          title: normalizedArticle.title,
+          url: normalizedArticle.url,
           source: args.source,
-          summary: article.summary,
-          imageUrl: article.imageUrl,
-          tags: article.tags,
-          publishedAt: article.publishedAt,
+          summary: normalizedArticle.summary,
+          imageUrl: normalizedArticle.imageUrl,
+          tags: normalizedArticle.tags,
+          publishedAt: normalizedArticle.publishedAt,
           isDemo: false,
         });
         continue;
@@ -233,15 +277,15 @@ export const upsertArticles = internalMutation({
 
       await ctx.db.insert("newsArticles", {
         feedId: args.feedId,
-        externalId: article.externalId,
-        title: article.title,
-        url: article.url,
+        externalId: normalizedArticle.externalId,
+        title: normalizedArticle.title,
+        url: normalizedArticle.url,
         source: args.source,
-        summary: article.summary,
-        imageUrl: article.imageUrl,
-        tags: article.tags,
+        summary: normalizedArticle.summary,
+        imageUrl: normalizedArticle.imageUrl,
+        tags: normalizedArticle.tags,
         discussionPostId: undefined,
-        publishedAt: article.publishedAt,
+        publishedAt: normalizedArticle.publishedAt,
         isDemo: false,
         createdAt: args.fetchedAt,
       });

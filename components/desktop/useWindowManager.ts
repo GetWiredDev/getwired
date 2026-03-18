@@ -9,6 +9,7 @@ import type {
   WindowPosition,
   WindowSize,
   AppRegistryEntry,
+  OpenWindowOptions,
 } from "./types";
 
 // ── App Registry ──────────────────────────────────────────────────────────────
@@ -59,6 +60,7 @@ function loadFromLocalStorage(): WindowManagerState | null {
         appId: w.appId,
         title: w.title ?? app.title,
         icon: w.icon ?? app.icon,
+        context: typeof w.context === "string" ? w.context : undefined,
         position: w.position ?? getStaggeredPosition(validWindows.length),
         size: w.size ?? { ...app.defaultSize },
         zIndex: typeof w.zIndex === "number" ? w.zIndex : validWindows.length + 1,
@@ -114,7 +116,13 @@ function windowManagerReducer(
         return {
           windows: state.windows.map((w) =>
             w.id === existing.id
-              ? { ...w, isMinimized: false, zIndex: state.nextZIndex }
+              ? {
+                  ...w,
+                  title: action.title ?? w.title,
+                  context: action.context ?? w.context,
+                  isMinimized: false,
+                  zIndex: state.nextZIndex,
+                }
               : w,
           ),
           nextZIndex: state.nextZIndex + 1,
@@ -127,6 +135,7 @@ function windowManagerReducer(
         appId: action.appId,
         title: action.title ?? app.title,
         icon: app.icon,
+        context: action.context,
         position,
         size: { ...app.defaultSize },
         zIndex: state.nextZIndex,
@@ -247,10 +256,14 @@ export function useWindowManagerProvider(): WindowManagerContextValue {
     return () => clearTimeout(timer);
   }, [state]);
 
-  const openWindow = useCallback(
-    (appId: string, title?: string) => dispatch({ type: "OPEN_WINDOW", appId, title }),
-    [],
-  );
+  const openWindow = useCallback((appId: string, options?: OpenWindowOptions) => {
+    dispatch({
+      type: "OPEN_WINDOW",
+      appId,
+      title: options?.title,
+      context: options?.context,
+    });
+  }, []);
   const closeWindow = useCallback(
     (windowId: string) => dispatch({ type: "CLOSE_WINDOW", windowId }),
     [],

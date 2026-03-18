@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -72,11 +73,13 @@ export function EventCard({
 
         {event.host && (
           <div className="mb-3 flex items-center gap-2">
-            <UserAvatar src={event.host.avatar} name={event.host.name} size="sm" />
-            <div>
+            <Link href={`/profile/${event.host.username}`} className="shrink-0">
+              <UserAvatar src={event.host.avatar} name={event.host.name} size="sm" />
+            </Link>
+            <Link href={`/profile/${event.host.username}`} className="transition-colors hover:text-[#3B82F6]">
               <p className="text-xs font-medium">Hosted by {event.host.name}</p>
               <p className="text-[10px] text-muted-foreground">@{event.host.username}</p>
-            </div>
+            </Link>
           </div>
         )}
 

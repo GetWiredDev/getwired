@@ -21,7 +21,7 @@ export function Desktop() {
       <div className="absolute inset-0 top-7">
         {state.windows.map((win) => (
           <AppWindow key={win.id} windowState={win}>
-            <AppContent appId={win.appId} title={win.title} />
+            <AppContent appId={win.appId} title={win.title} context={win.context} />
           </AppWindow>
         ))}
       </div>
