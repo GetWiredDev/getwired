@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { action, internalMutation, internalQuery } from "./_generated/server";
+import { action, internalAction, internalMutation, internalQuery } from "./_generated/server";
 import { internal } from "./_generated/api";
 
 export const getTrackedKeywords = internalQuery({
@@ -50,7 +50,7 @@ export const updateKeywordMetrics = internalMutation({
 
 export const analyzeKeywords = action({
   args: { projectId: v.id("projects"), domain: v.string() },
-  handler: async (ctx, { projectId, domain }) => {
+  handler: async (ctx, { projectId, domain }): Promise<void> => {
     const keywords = await ctx.runQuery(internal.analysis.getTrackedKeywords, {
       projectId,
     });
@@ -155,7 +155,7 @@ export const analyzeKeywords = action({
   },
 });
 
-export const analyzeAllTrackedKeywords = action({
+export const analyzeAllTrackedKeywords = internalAction({
   args: {},
   handler: async (ctx) => {
     // This is called by cron - analyze all projects

@@ -29,7 +29,7 @@ export const draftResponse = action({
       v.union(v.literal("helpful"), v.literal("casual"), v.literal("expert"))
     ),
   },
-  handler: async (ctx, { projectId, redditPostId, tone }) => {
+  handler: async (ctx, { projectId, redditPostId, tone }): Promise<string> => {
     const openrouterKey = process.env.OPENROUTER_API_KEY;
     if (!openrouterKey) {
       return "OpenRouter API key not configured. Please add OPENROUTER_API_KEY to your Convex environment variables.";
