@@ -5,11 +5,11 @@ import { useParams } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { Loader2, Search, Globe } from "lucide-react";
+import { motion } from "framer-motion";
+
+const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.06 } } };
+const fadeUp = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" as const } } };
 
 export default function CompetitorsPage() {
   const params = useParams();
@@ -25,88 +25,78 @@ export default function CompetitorsPage() {
     try {
       const domain = new URL(project.url).hostname.replace("www.", "");
       await discoverCompetitors({ projectId, domain });
-    } catch (e) {
-      console.error("Discovery failed:", e);
-    } finally {
-      setIsDiscovering(false);
-    }
+    } catch (e) { console.error("Discovery failed:", e); }
+    finally { setIsDiscovering(false); }
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <motion.div className="space-y-6" variants={stagger} initial="hidden" animate="show">
+      <motion.div variants={fadeUp} className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Competitors</h1>
-          <p className="text-muted-foreground">
-            Discover and analyze your competitors
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight" style={{ color: "var(--fg)" }}>Competitors</h1>
+          <p className="text-sm mt-1" style={{ color: "var(--fg-secondary)" }}>Discover and analyze your competitors</p>
         </div>
-        <Button onClick={handleDiscover} disabled={isDiscovering}>
-          {isDiscovering ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Discovering...
-            </>
-          ) : (
-            <>
-              <Search className="mr-2 h-4 w-4" />
-              Discover Competitors
-            </>
-          )}
-        </Button>
-      </div>
+        <button onClick={handleDiscover} disabled={isDiscovering}
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white transition-all duration-200 hover:scale-105 active:scale-[0.98] disabled:opacity-50 cursor-pointer"
+          style={{ background: "linear-gradient(135deg, var(--accent), var(--accent-hover))" }}
+        >
+          {isDiscovering ? <><Loader2 className="h-4 w-4 animate-spin" /> Discovering...</> : <><Search className="h-4 w-4" /> Discover Competitors</>}
+        </button>
+      </motion.div>
 
       {competitors === undefined ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {[1, 2, 3].map((i) => (
-            <Card key={i} className="animate-pulse">
-              <CardHeader><div className="h-5 bg-muted rounded w-3/4" /></CardHeader>
-              <CardContent><div className="h-4 bg-muted rounded w-1/2" /></CardContent>
-            </Card>
+            <div key={i} className="card rounded-2xl p-5 animate-pulse">
+              <div className="h-4 rounded-lg w-3/4 mb-3" style={{ background: "var(--border-color)" }} />
+              <div className="h-3 rounded-lg w-1/2" style={{ background: "var(--border-subtle)" }} />
+            </div>
           ))}
         </div>
       ) : competitors.length === 0 ? (
-        <Card className="border-dashed">
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <Globe className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No competitors found</h3>
-            <p className="text-muted-foreground text-center mb-4">
+        <motion.div variants={fadeUp}>
+          <div className="card-dashed rounded-2xl p-12 flex flex-col items-center justify-center text-center">
+            <div className="h-14 w-14 rounded-2xl flex items-center justify-center mb-5 animate-float" style={{ background: "var(--accent-subtle)" }}>
+              <Globe className="h-6 w-6" style={{ color: "var(--accent)" }} />
+            </div>
+            <h3 className="text-base font-semibold mb-2" style={{ color: "var(--fg)" }}>No competitors found</h3>
+            <p className="text-sm max-w-md" style={{ color: "var(--fg-secondary)" }}>
               Click &quot;Discover Competitors&quot; to find domains competing for your keywords.
             </p>
-          </CardContent>
-        </Card>
+          </div>
+        </motion.div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <motion.div variants={stagger} className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {competitors.map((comp) => (
-            <Card key={comp._id}>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base">{comp.name ?? comp.domain}</CardTitle>
-                  {comp.overlapScore != null && (
-                    <Badge variant="secondary">{comp.overlapScore}% overlap</Badge>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <p className="text-sm text-muted-foreground">{comp.domain}</p>
+            <motion.div key={comp._id} variants={fadeUp}
+              className="card rounded-2xl p-5 transition-all duration-300 hover:scale-[1.02] group">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold" style={{ color: "var(--fg)" }}>{comp.name ?? comp.domain}</h3>
                 {comp.overlapScore != null && (
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-xs">
-                      <span>Keyword Overlap</span>
-                      <span>{comp.overlapScore}%</span>
-                    </div>
-                    <Progress value={comp.overlapScore} />
-                  </div>
+                  <span className="text-[11px] font-medium px-2 py-0.5 rounded-full" style={{ background: "var(--accent-subtle)", color: "var(--accent)" }}>
+                    {comp.overlapScore}% overlap
+                  </span>
                 )}
-                <p className="text-xs text-muted-foreground">
-                  Discovered {new Date(comp.discoveredAt).toLocaleDateString()}
-                </p>
-              </CardContent>
-            </Card>
+              </div>
+              <p className="text-xs mb-3" style={{ color: "var(--fg-muted)" }}>{comp.domain}</p>
+              {comp.overlapScore != null && (
+                <div className="space-y-1.5">
+                  <div className="flex justify-between text-[11px]" style={{ color: "var(--fg-muted)" }}>
+                    <span>Keyword Overlap</span><span>{comp.overlapScore}%</span>
+                  </div>
+                  <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--border-color)" }}>
+                    <div className="h-full rounded-full transition-all duration-500" style={{ width: `${comp.overlapScore}%`, background: "var(--accent)" }} />
+                  </div>
+                </div>
+              )}
+              <p className="text-[11px] mt-3" style={{ color: "var(--fg-muted)" }}>
+                Discovered {new Date(comp.discoveredAt).toLocaleDateString()}
+              </p>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       )}
-    </div>
+    </motion.div>
   );
 }
 

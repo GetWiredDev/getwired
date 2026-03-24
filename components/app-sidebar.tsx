@@ -5,23 +5,10 @@ import {
   FolderKanban,
   Bot,
   Settings,
+  Zap,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarRail,
-} from "@/components/ui/sidebar";
 import { NavUser } from "@/components/nav-user";
 
 const navItems = [
@@ -35,48 +22,62 @@ export function AppSidebar() {
   const pathname = usePathname();
 
   return (
-    <Sidebar>
-      <SidebarHeader>
-        <div className="flex items-center gap-2.5 px-2 py-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-foreground text-background font-semibold text-xs tracking-tight">
-            GW
-          </div>
-          <div className="flex flex-col">
-            <span className="text-sm font-semibold tracking-tight">GetWired</span>
-            <span className="text-[11px] text-muted-foreground leading-none">
-              Growth Intelligence
-            </span>
-          </div>
+    <aside
+      className="fixed left-0 top-0 bottom-0 z-40 flex flex-col"
+      style={{
+        width: "var(--sidebar-width)",
+        background: "var(--bg-secondary)",
+        borderRight: "1px solid var(--border-color)",
+      }}
+    >
+      {/* Brand */}
+      <div className="flex items-center gap-2.5 px-4 h-[52px] shrink-0">
+        <div
+          className="flex h-7 w-7 items-center justify-center rounded-lg text-white"
+          style={{ background: "var(--accent)" }}
+        >
+          <Zap className="h-3.5 w-3.5" />
         </div>
-      </SidebarHeader>
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-[11px] uppercase tracking-widest text-muted-foreground/70 font-medium">Navigation</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {navItems.map((item) => {
-                const isActive =
-                  item.href === "/"
-                    ? pathname === "/"
-                    : pathname.startsWith(item.href);
-                return (
-                  <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton render={<Link href={item.href} />} isActive={isActive}>
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.label}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      </SidebarContent>
-      <SidebarFooter>
+        <span className="text-[13px] font-bold tracking-tight" style={{ color: "var(--fg)" }}>
+          GetWired
+        </span>
+      </div>
+
+      {/* Navigation */}
+      <nav className="flex-1 px-2 py-2 space-y-0.5 overflow-y-auto">
+        {navItems.map((item) => {
+          const isActive =
+            item.href === "/"
+              ? pathname === "/"
+              : pathname.startsWith(item.href);
+          return (
+            <Link key={item.href} href={item.href}>
+              <div
+                className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-all duration-150 cursor-pointer"
+                style={{
+                  color: isActive ? "#fff" : "var(--fg-secondary)",
+                  background: isActive ? "var(--accent)" : "transparent",
+                }}
+                onMouseEnter={(e) => {
+                  if (!isActive) e.currentTarget.style.background = "var(--bg-card-hover)";
+                }}
+                onMouseLeave={(e) => {
+                  if (!isActive) e.currentTarget.style.background = "transparent";
+                }}
+              >
+                <item.icon className="h-4 w-4 shrink-0" />
+                <span>{item.label}</span>
+              </div>
+            </Link>
+          );
+        })}
+      </nav>
+
+      {/* User */}
+      <div className="px-2 pb-3">
         <NavUser />
-      </SidebarFooter>
-      <SidebarRail />
-    </Sidebar>
+      </div>
+    </aside>
   );
 }
 

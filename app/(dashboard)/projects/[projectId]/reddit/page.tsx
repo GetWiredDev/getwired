@@ -7,9 +7,10 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { RedditPostCard } from "@/components/reddit-post-card";
 import { RedditFilters } from "@/components/reddit-filters";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, Search, MessageSquare } from "lucide-react";
+import { motion } from "framer-motion";
+
+const fadeUp = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" as const } } };
 
 export default function RedditPage() {
   const params = useParams();
@@ -25,16 +26,10 @@ export default function RedditPage() {
     if (!keywords) return;
     setIsSearching(true);
     try {
-      const trackedKeywords = keywords
-        .filter((k) => k.tracked)
-        .map((k) => k.keyword)
-        .slice(0, 10);
+      const trackedKeywords = keywords.filter((k) => k.tracked).map((k) => k.keyword).slice(0, 10);
       await searchReddit({ projectId, keywords: trackedKeywords });
-    } catch (e) {
-      console.error("Reddit search failed:", e);
-    } finally {
-      setIsSearching(false);
-    }
+    } catch (e) { console.error("Reddit search failed:", e); }
+    finally { setIsSearching(false); }
   };
 
   const filteredPosts = (posts ?? [])
@@ -43,67 +38,51 @@ export default function RedditPage() {
     .sort((a, b) => b.relevanceScore - a.relevanceScore);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <motion.div className="space-y-6" initial="hidden" animate="show" variants={{ hidden: {}, show: { transition: { staggerChildren: 0.08 } } }}>
+      <motion.div variants={fadeUp} className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            Reddit Intelligence
-          </h1>
-          <p className="text-muted-foreground">
-            Discover and respond to relevant Reddit discussions
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight" style={{ color: "var(--fg)" }}>Reddit Intelligence</h1>
+          <p className="text-sm mt-1" style={{ color: "var(--fg-secondary)" }}>Discover and respond to relevant Reddit discussions</p>
         </div>
-        <Button onClick={handleSearch} disabled={isSearching}>
-          {isSearching ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Searching...
-            </>
-          ) : (
-            <>
-              <Search className="mr-2 h-4 w-4" />
-              Search Reddit
-            </>
-          )}
-        </Button>
-      </div>
+        <button onClick={handleSearch} disabled={isSearching}
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white transition-all duration-200 hover:scale-105 active:scale-[0.98] disabled:opacity-50 cursor-pointer"
+          style={{ background: "linear-gradient(135deg, var(--accent), var(--accent-hover))" }}
+        >
+          {isSearching ? <><Loader2 className="h-4 w-4 animate-spin" /> Searching...</> : <><Search className="h-4 w-4" /> Search Reddit</>}
+        </button>
+      </motion.div>
 
-      <RedditFilters
-        statusFilter={statusFilter}
-        onStatusChange={(v) => setStatusFilter(v ?? "all")}
-        minRelevance={minRelevance}
-        onRelevanceChange={setMinRelevance}
-      />
+      <motion.div variants={fadeUp}>
+        <RedditFilters statusFilter={statusFilter} onStatusChange={(v) => setStatusFilter(v ?? "all")} minRelevance={minRelevance} onRelevanceChange={setMinRelevance} />
+      </motion.div>
 
       {posts === undefined ? (
         <div className="space-y-4">
           {[1, 2, 3].map((i) => (
-            <Card key={i} className="animate-pulse">
-              <CardContent className="py-6">
-                <div className="h-4 bg-muted rounded w-3/4 mb-2" />
-                <div className="h-3 bg-muted rounded w-1/2" />
-              </CardContent>
-            </Card>
+            <div key={i} className="card rounded-2xl p-5 animate-pulse">
+              <div className="h-4 rounded-lg w-3/4 mb-2" style={{ background: "var(--border-color)" }} />
+              <div className="h-3 rounded-lg w-1/2" style={{ background: "var(--border-subtle)" }} />
+            </div>
           ))}
         </div>
       ) : filteredPosts.length === 0 ? (
-        <Card className="border-dashed">
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <MessageSquare className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No Reddit posts found</h3>
-            <p className="text-muted-foreground text-center mb-4">
+        <motion.div variants={fadeUp}>
+          <div className="card-dashed rounded-2xl p-12 flex flex-col items-center justify-center text-center">
+            <div className="h-14 w-14 rounded-2xl flex items-center justify-center mb-5 animate-float" style={{ background: "var(--accent-subtle)" }}>
+              <MessageSquare className="h-6 w-6" style={{ color: "var(--accent)" }} />
+            </div>
+            <h3 className="text-base font-semibold mb-2" style={{ color: "var(--fg)" }}>No Reddit posts found</h3>
+            <p className="text-sm max-w-md" style={{ color: "var(--fg-secondary)" }}>
               Click &quot;Search Reddit&quot; to find relevant discussions for your keywords.
             </p>
-          </CardContent>
-        </Card>
+          </div>
+        </motion.div>
       ) : (
         <div className="space-y-4">
-          {filteredPosts.map((post) => (
-            <RedditPostCard key={post._id} post={post} />
-          ))}
+          {filteredPosts.map((post) => <RedditPostCard key={post._id} post={post} />)}
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }
 

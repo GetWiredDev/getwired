@@ -1,7 +1,6 @@
 "use client";
 
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 interface TrendSparklineProps {
   direction?: "rising" | "stable" | "declining";
@@ -10,12 +9,12 @@ interface TrendSparklineProps {
 
 export function TrendSparkline({ direction, className }: TrendSparklineProps) {
   if (!direction) {
-    return <Minus className={cn("h-4 w-4 text-muted-foreground", className)} />;
+    return <Minus className={`h-4 w-4 ${className ?? ""}`} style={{ color: "var(--fg-muted)" }} />;
   }
 
   if (direction === "rising") {
     return (
-      <div className={cn("flex items-center gap-1 text-green-600", className)}>
+      <div className={`flex items-center gap-1 ${className ?? ""}`} style={{ color: "var(--success)" }}>
         <TrendingUp className="h-4 w-4" />
         <span className="text-xs font-medium">Rising</span>
       </div>
@@ -24,7 +23,7 @@ export function TrendSparkline({ direction, className }: TrendSparklineProps) {
 
   if (direction === "declining") {
     return (
-      <div className={cn("flex items-center gap-1 text-red-500", className)}>
+      <div className={`flex items-center gap-1 ${className ?? ""}`} style={{ color: "var(--destructive)" }}>
         <TrendingDown className="h-4 w-4" />
         <span className="text-xs font-medium">Declining</span>
       </div>
@@ -32,7 +31,7 @@ export function TrendSparkline({ direction, className }: TrendSparklineProps) {
   }
 
   return (
-    <div className={cn("flex items-center gap-1 text-muted-foreground", className)}>
+    <div className={`flex items-center gap-1 ${className ?? ""}`} style={{ color: "var(--fg-muted)" }}>
       <Minus className="h-4 w-4" />
       <span className="text-xs font-medium">Stable</span>
     </div>

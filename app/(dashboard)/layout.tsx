@@ -6,8 +6,6 @@ import { useEffect, useRef } from "react";
 import { useUser, useAuth } from "@clerk/nextjs";
 import { api } from "@/convex/_generated/api";
 
-import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
-import { Separator } from "@/components/ui/separator";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -34,40 +32,48 @@ export default function DashboardLayout({
     }
   }, [isConvexAuthenticated, user, ensureUser]);
 
-  // Wait for both Clerk and Convex to finish loading before making any decision.
-  // This prevents the redirect loop where Convex auth hasn't synced yet
-  // but Clerk is already signed in.
   if (!isClerkLoaded || isConvexLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      <div className="flex min-h-screen items-center justify-center" style={{ background: "var(--bg)" }}>
+        <div className="flex flex-col items-center gap-4">
+          <div
+            className="h-10 w-10 rounded-xl animate-pulse"
+            style={{ background: "linear-gradient(135deg, var(--accent), var(--accent-hover))" }}
+          />
+          <div className="h-1 w-24 rounded-full overflow-hidden" style={{ background: "var(--border-color)" }}>
+            <div className="h-full w-1/2 rounded-full shimmer" style={{ background: "var(--accent)" }} />
+          </div>
+        </div>
       </div>
     );
   }
 
-  // Only redirect if Clerk itself says the user is not signed in.
-  // The middleware already protects these routes, so this is a fallback.
-  // We intentionally do NOT redirect based on Convex auth state to avoid
-  // a loop when the Clerk→Convex token handoff is still in progress.
   if (!isSignedIn) {
-    // Middleware will handle the redirect; render nothing to avoid flash.
     return null;
   }
 
   return (
-    <SidebarProvider>
+    <div className="flex min-h-screen" style={{ background: "var(--bg)" }}>
       <AppSidebar />
-      <SidebarInset>
-        <header className="flex h-12 shrink-0 items-center justify-between border-b border-border/50 px-6">
-          <div className="flex items-center gap-2">
-            <SidebarTrigger className="-ml-1 text-muted-foreground hover:text-foreground transition-colors" />
-            <Separator orientation="vertical" className="mr-2 !h-4 bg-border/50" />
-          </div>
+      <div className="flex-1 flex flex-col" style={{ marginLeft: "var(--sidebar-width)" }}>
+        {/* Header */}
+        <header
+          className="sticky top-0 z-30 flex items-center justify-end px-6 shrink-0"
+          style={{
+            height: "var(--header-height)",
+            background: "var(--bg)",
+            borderBottom: "1px solid var(--border-subtle)",
+          }}
+        >
           <ThemeToggle />
         </header>
-        <main className="flex-1 p-6 md:p-8 lg:p-10">{children}</main>
-      </SidebarInset>
-    </SidebarProvider>
+
+        {/* Main content */}
+        <main className="flex-1 flex flex-col overflow-hidden px-6 py-6 lg:px-8 lg:py-8">
+          {children}
+        </main>
+      </div>
+    </div>
   );
 }
 
