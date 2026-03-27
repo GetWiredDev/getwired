@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { Box, Text } from "ink";
+import { Box, Text, useApp } from "ink";
 import { Header } from "./Header.js";
 import { StatusBar } from "./StatusBar.js";
 import { TestProgress } from "./TestProgress.js";
+import { ProviderStream } from "./ProviderStream.js";
+import { runTestSession } from "../orchestrator/index.js";
+import type { TestStep, TestPhase } from "../orchestrator/index.js";
+import type { TestFinding, TestReport } from "../providers/types.js";
 
 interface RunCommandProps {
   options: {
@@ -10,64 +14,127 @@ interface RunCommandProps {
     commit?: string;
     pr?: string;
     scope?: string;
+    device?: string;
+    provider?: string;
+    baselineOnly?: boolean;
   };
 }
 
-const DEMO_STEPS = [
-  { name: "Discovering project structure", status: "passed" as const, duration: 320 },
-  { name: "Loading project notes & context", status: "passed" as const, duration: 45 },
-  { name: "Identifying test targets", status: "passed" as const, duration: 180 },
-  { name: "Testing navigation flows", status: "running" as const },
-  { name: "Testing form interactions", status: "pending" as const },
-  { name: "Testing API responses", status: "pending" as const },
-  { name: "Checking accessibility", status: "pending" as const },
-  { name: "Generating report", status: "pending" as const },
-];
-
 export function RunCommand({ options }: RunCommandProps) {
-  const [steps, setSteps] = useState(DEMO_STEPS);
-  const currentStep = steps.findIndex((s) => s.status === "running");
+  const { exit } = useApp();
+  const [phase, setPhase] = useState<TestPhase>("initializing");
+  const [phaseMessage, setPhaseMessage] = useState("Starting...");
+  const [steps, setSteps] = useState<TestStep[]>([]);
+  const [findings, setFindings] = useState<TestFinding[]>([]);
+  const [logs, setLogs] = useState<string[]>([]);
+  const [report, setReport] = useState<TestReport | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [providerOutput, setProviderOutput] = useState("");
+
+  useEffect(() => {
+    const projectPath = process.cwd();
+
+    runTestSession(
+      projectPath,
+      {
+        url: options.url,
+        commitId: options.commit,
+        prId: options.pr,
+        scope: options.scope,
+      },
+      {
+        onPhaseChange: (p, msg) => {
+          setPhase(p);
+          setPhaseMessage(msg);
+        },
+        onStepUpdate: (s) => setSteps([...s]),
+        onFinding: (f) => setFindings((prev) => [...prev, f]),
+        onLog: (msg) => setLogs((prev) => [...prev, msg].slice(-10)),
+        onProviderOutput: (text) => setProviderOutput((prev) => prev + text),
+      },
+    )
+      .then((r) => setReport(r))
+      .catch((err) => setError(String(err)));
+  }, []);
+
+  const statusMap: Record<TestPhase, "idle" | "testing" | "analyzing" | "reporting" | "error"> = {
+    initializing: "testing",
+    scanning: "testing",
+    planning: "analyzing",
+    "capturing-baseline": "testing",
+    testing: "testing",
+    "capturing-current": "testing",
+    comparing: "analyzing",
+    analyzing: "analyzing",
+    breaking: "testing",
+    reporting: "reporting",
+    done: "idle",
+    error: "error",
+  };
 
   const mode = options.commit
     ? `Regression · commit ${options.commit.slice(0, 7)}`
     : options.pr
       ? `Regression · PR #${options.pr}`
-      : options.url
-        ? `Testing · ${options.url}`
-        : "Full Test Suite";
+      : options.baselineOnly
+        ? "Capturing Baselines"
+        : options.url
+          ? `Testing · ${options.url}`
+          : "Full Test Suite";
 
   return (
     <Box flexDirection="column">
       <Header subtitle={mode} />
+      <StatusBar status={statusMap[phase] ?? "testing"} message={phaseMessage} />
 
-      <StatusBar
-        status="testing"
-        message={
-          currentStep >= 0
-            ? steps[currentStep].name
-            : "Preparing..."
-        }
-      />
+      {/* Split Pane: Left = Progress | Right = Agent Feed */}
+      <Box flexDirection="row" marginY={1} minHeight={20}>
+        {/* Left Panel */}
+        <Box flexDirection="column" width="50%">
+          {steps.length > 0 && (
+            <TestProgress steps={steps} currentStep={Math.max(0, steps.findIndex((s) => s.status === "running"))} />
+          )}
 
-      <Box marginY={1}>
-        <TestProgress steps={steps} currentStep={Math.max(0, currentStep)} />
+          {findings.length > 0 && (
+            <Box flexDirection="column" paddingX={1} marginTop={1}>
+              <Text color="greenBright" bold>── Findings ({findings.length}) ──</Text>
+              {findings.slice(-6).map((f, i) => (
+                <Box key={i} gap={1} paddingLeft={1}>
+                  <Text color={f.severity === "critical" || f.severity === "high" ? "redBright" : "yellow"}>
+                    {f.severity === "critical" || f.severity === "high" ? "✘" : "⚠"} [{f.severity}] {f.title.slice(0, 40)}
+                  </Text>
+                </Box>
+              ))}
+            </Box>
+          )}
+
+          {report && (
+            <Box flexDirection="column" paddingX={1} marginTop={1}>
+              <Text color="greenBright" bold>✔ Testing Complete</Text>
+              <Text color="green">
+                {report.summary.passed} passed · {report.summary.failed} failed · {report.summary.warnings} warnings
+              </Text>
+              <Text color="green" dimColor>
+                {report.summary.duration}ms · .getwired/reports/{report.id}.json
+              </Text>
+            </Box>
+          )}
+
+          {error && (
+            <Box flexDirection="column" paddingX={1} marginTop={1}>
+              <Text color="redBright">Error: {error.slice(0, 120)}</Text>
+            </Box>
+          )}
+        </Box>
+
+        {/* Right Panel: Live Provider Output */}
+        <Box width="50%">
+          <ProviderStream output={providerOutput} />
+        </Box>
       </Box>
 
-      {options.scope && (
-        <Box paddingX={2}>
-          <Text color="green" dimColor>
-            Scope: {options.scope}
-          </Text>
-        </Box>
-      )}
-
       <Box paddingX={2} marginTop={1} gap={2}>
-        <Text color="green" dimColor>
-          [Ctrl+C] Cancel
-        </Text>
-        <Text color="green" dimColor>
-          [p] Pause
-        </Text>
+        <Text color="green" dimColor>[Ctrl+C] Cancel</Text>
       </Box>
     </Box>
   );

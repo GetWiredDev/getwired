@@ -16,7 +16,7 @@ export function Header({ subtitle }: { subtitle?: string }) {
         {LOGO}
       </Text>
       <Text color="greenBright" dimColor>
-        {subtitle ?? "AI-Powered Testing CLI"}
+        {subtitle ?? "Human-Like AI Testing CLI"}
       </Text>
       <Text color="green" dimColor>
         {"─".repeat(62)}

@@ -8,7 +8,7 @@ export default function Home() {
             GETWIRED
           </h1>
           <p className="font-mono text-sm tracking-wide text-emerald-500/70">
-            AI-Powered Testing CLI
+            Human-Like AI Testing CLI
           </p>
           <div className="mt-6 rounded border border-emerald-900/50 bg-emerald-950/30 px-6 py-3 font-mono text-sm text-green-400">
             <span className="text-emerald-600">$</span> npx getwired

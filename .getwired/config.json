@@ -1,0 +1,37 @@
+{
+  "provider": "auggie",
+  "auth": {},
+  "testing": {
+    "deviceProfile": "desktop",
+    "viewports": {
+      "desktop": {
+        "width": 1920,
+        "height": 1080
+      },
+      "mobile": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    "screenshotFullPage": true,
+    "screenshotDelay": 1000,
+    "diffThreshold": 0.01,
+    "maxConcurrency": 3
+  },
+  "project": {
+    "name": "getwired",
+    "notes": [],
+    "pages": [],
+    "ignorePatterns": [
+      "node_modules",
+      ".git",
+      "dist",
+      ".next"
+    ]
+  },
+  "reporting": {
+    "outputFormat": "html",
+    "includeScreenshots": true,
+    "autoOpen": false
+  }
+}

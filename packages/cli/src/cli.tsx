@@ -7,35 +7,40 @@ import { ReportView } from "./components/ReportView.js";
 
 program
   .name("getwired")
-  .description("AI-powered testing CLI that mimics a human tester")
+  .description("Human-like AI testing CLI")
   .version("0.1.0");
 
 program
   .command("init")
-  .description("Initialize GetWired in the current project")
-  .action(() => {
-    render(<App mode="init" />);
+  .description("Initialize GetWired and open the dashboard")
+  .option("--provider <provider>", "AI provider to use (claude-code, auggie, codex)")
+  .action((options) => {
+    render(<App mode="init" initProvider={options.provider} />);
   });
 
+// Direct CLI commands (non-interactive, for CI/scripting)
 program
   .command("test")
-  .description("Run tests on your project")
-  .option("-u, --url <url>", "URL to test")
+  .description("Run tests — tell me what to break")
+  .option("-u, --url <url>", "URL to test (uses config URL if not provided)")
   .option("-c, --commit <id>", "Test against a specific commit for regression")
   .option("-p, --pr <id>", "Test against a specific pull request")
   .option("--scope <scope>", "Scope of testing (e.g. auth, checkout, navigation)")
+  .option("-d, --device <profile>", "Device profile: desktop, mobile, or both", "both")
+  .option("--provider <provider>", "Override AI provider for this run")
   .action((options) => {
     render(<RunCommand options={options} />);
   });
 
 program
   .command("report")
-  .description("View the latest test report")
+  .description("View test reports (non-interactive)")
   .option("-i, --id <id>", "View a specific report by ID")
   .action((options) => {
     render(<ReportView reportId={options.id} />);
   });
 
+// Default: interactive dashboard
 program
   .command("dashboard", { isDefault: true })
   .description("Open the interactive dashboard")

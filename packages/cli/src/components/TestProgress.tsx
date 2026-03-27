@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Box, Text } from "ink";
 
 interface TestStep {
@@ -30,14 +30,16 @@ const STATUS_COLOR: Record<TestStep["status"], string> = {
 };
 
 export function TestProgress({ steps, currentStep }: TestProgressProps) {
-  const [dots, setDots] = useState("");
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setDots((prev) => (prev.length >= 3 ? "" : prev + "."));
-    }, 400);
+    const timer = setInterval(() => setTick((t) => t + 1), 400);
     return () => clearInterval(timer);
   }, []);
+
+  // Fixed-width dots so the text never changes width
+  const dotCount = (tick % 3) + 1;
+  const dots = ".".repeat(dotCount) + " ".repeat(3 - dotCount);
 
   return (
     <Box flexDirection="column" paddingX={1}>
