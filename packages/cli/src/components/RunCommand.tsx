@@ -118,12 +118,23 @@ export function RunCommand({ options }: RunCommandProps) {
               <Text color="green">
                 {report.summary.passed} passed · {report.summary.failed} failed · {report.summary.warnings} warnings
               </Text>
+              {report.execution && (
+                <Text color={report.execution.evidenceMet ? "green" : "redBright"} dimColor={!report.execution.evidenceMet}>
+                  Browser evidence: {report.execution.navigations} navigations · {report.execution.screenshots} screenshots
+                </Text>
+              )}
               <Text color="green" dimColor>
                 {report.summary.duration}ms · .getwired/reports/{report.id}/{report.id}.json
               </Text>
-              <Text color="green" dimColor>
-                Screenshots: .getwired/reports/{report.id}/screenshots/
-              </Text>
+              {report.execution?.screenshots ? (
+                <Text color="green" dimColor>
+                  Screenshots: .getwired/reports/{report.id}/screenshots/
+                </Text>
+              ) : (
+                <Text color="redBright" dimColor>
+                  Screenshots: none captured
+                </Text>
+              )}
             </Box>
           )}
 

@@ -123,6 +123,17 @@ export function ReportView({ reportId }: ReportViewProps) {
               <Text color="green" dimColor>Duration: {report.summary.duration}ms</Text>
             </Box>
 
+            {report.execution && (
+              <Box gap={2} marginBottom={1}>
+                <Text color={report.execution.evidenceMet ? "green" : "redBright"} dimColor={!report.execution.evidenceMet}>
+                  Navigations: {report.execution.navigations}
+                </Text>
+                <Text color={report.execution.evidenceMet ? "green" : "redBright"} dimColor={!report.execution.evidenceMet}>
+                  Screenshots: {report.execution.screenshots}
+                </Text>
+              </Box>
+            )}
+
             <Box flexDirection="column" gap={0}>
               <Box gap={1}>
                 <Text color="green">✔</Text>

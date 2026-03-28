@@ -53,12 +53,22 @@ export interface TestFinding {
   steps?: string[];
 }
 
+export interface TestExecutionSummary {
+  browserSessions: number;
+  navigations: number;
+  screenshots: number;
+  scenariosPlanned: number;
+  scenariosExecuted: number;
+  evidenceMet: boolean;
+}
+
 export interface TestReport {
   id: string;
   timestamp: string;
   provider: string;
   context: TestContext;
   findings: TestFinding[];
+  execution?: TestExecutionSummary;
   summary: {
     totalTests: number;
     passed: number;

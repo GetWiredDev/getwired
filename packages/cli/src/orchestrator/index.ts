@@ -2,13 +2,15 @@ import { readFile, writeFile, readdir, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, relative } from "node:path";
 import { execSync } from "node:child_process";
+import { createConnection } from "node:net";
 import { getBrowserSession } from "../browser/session.js";
 import { getProvider } from "../providers/registry.js";
-import { loadConfig, getBaselineDir, getReportDir, getNotesDir } from "../config/settings.js";
+import { loadConfig, getBaselineDir, getReportDir, getNotesDir, getMemoryPath } from "../config/settings.js";
 import { captureScreenshots, captureMultiplePages } from "../screenshot/capture.js";
 import { compareScreenshots, imageToBase64 } from "../screenshot/compare.js";
 import type {
   TestContext,
+  TestExecutionSummary,
   TestReport,
   TestFinding,
   TestPersona,
@@ -61,6 +63,24 @@ interface InteractionScenario {
   actions: TestAction[];
 }
 
+interface BrowserExecutionStats {
+  browserSessions: number;
+  navigations: number;
+  screenshots: number;
+}
+
+interface ScenarioExecutionResult extends BrowserExecutionStats {
+  findings: TestFinding[];
+  executedScenarios: number;
+  error?: string;
+}
+
+interface AccessibilityExecutionResult extends BrowserExecutionStats {
+  findings: TestFinding[];
+  completed: boolean;
+  error?: string;
+}
+
 // ─── Main test session ──────────────────────────────────
 export async function runTestSession(
   projectPath: string,
@@ -80,11 +100,22 @@ export async function runTestSession(
   const persona = options.persona ?? "standard";
   const personaProfile = getPersonaProfile(persona);
   const findings: TestFinding[] = [];
+  const execution: TestExecutionSummary = {
+    browserSessions: 0,
+    navigations: 0,
+    screenshots: 0,
+    scenariosPlanned: 0,
+    scenariosExecuted: 0,
+    evidenceMet: false,
+  };
 
   const runId = generateId();
+  const memory = await loadMemory(projectPath);
+  const memoryUrl = parseMemoryUrl(memory);
+  const resolvedUrl = options.url ?? settings.project.url ?? memoryUrl ?? await detectProjectUrl(projectPath);
   const context: TestContext = {
     projectPath,
-    url: options.url ?? settings.project.url,
+    url: resolvedUrl,
     commitId: options.commitId,
     prId: options.prId,
     scope: options.scope,
@@ -101,6 +132,12 @@ export async function runTestSession(
   callbacks.onStepUpdate(steps);
 
   const out = (text: string) => callbacks.onProviderOutput?.(text);
+  const recordFindings = (newFindings: TestFinding[]) => {
+    for (const finding of newFindings) {
+      findings.push(finding);
+      callbacks.onFinding(finding);
+    }
+  };
 
   async function streamAnalyze(
     ctx: TestContext,
@@ -119,6 +156,12 @@ export async function runTestSession(
     return full;
   }
 
+  if (!context.url) {
+    throw new Error(
+      "No dev server detected. Start your dev server first, or provide a URL when starting a test.",
+    );
+  }
+
   try {
     // ── Step 1: Scan project ───────────────────────────
     callbacks.onPhaseChange("scanning", "Scanning project structure...");
@@ -126,10 +169,16 @@ export async function runTestSession(
     const projectInfo = await scanProject(projectPath, context);
     await updateStep(steps, 0, "passed", callbacks, Date.now() - startTime);
 
-    // ── Step 2: Load notes ─────────────────────────────
+    // ── Step 2: Load notes & memory ────────────────────
     callbacks.onPhaseChange("scanning", "Loading project context...");
     await updateStep(steps, 1, "running", callbacks);
     const notes = await loadProjectNotes(projectPath);
+    if (memory) {
+      out(`> Loaded memory from previous test sessions\n`);
+      if (memoryUrl && context.url === memoryUrl) {
+        out(`> Using remembered URL: ${memoryUrl}\n`);
+      }
+    }
     await updateStep(steps, 1, "passed", callbacks);
 
     // ── Step 3: Reconnaissance — AI explores like a human would ──
@@ -138,13 +187,11 @@ export async function runTestSession(
     out(`> ${settings.provider}: ${personaProfile.outputMessages.planning}\n\n`);
 
     let pageMap = "";
-    if (context.url) {
-      out(`> Crawling visible links and forms...\n`);
-      pageMap = await crawlSiteMap(context.url, out, settings.testing.showBrowser);
-    }
+    out(`> Crawling visible links and forms...\n`);
+    pageMap = await crawlSiteMap(context.url, out, settings.testing.showBrowser);
 
     const testPlan = await streamAnalyze(context, [
-      { role: "system", content: buildSystemPrompt(persona) },
+      { role: "system", content: buildSystemPrompt(persona, memory) },
       { role: "user", content: buildReconPrompt(context, projectInfo, notes, pageMap) },
     ]);
     callbacks.onLog(`Test plan generated with ${countPlanSteps(testPlan)} scenarios`);
@@ -153,148 +200,220 @@ export async function runTestSession(
     // ── Step 4: First impression screenshots ───────────
     let captures: Array<{ path: string; url: string; device: "desktop" | "mobile" }> = [];
 
-    if (context.url) {
-      callbacks.onPhaseChange("capturing-current", "Taking first-impression screenshots...");
+    callbacks.onPhaseChange("capturing-current", "Taking first-impression screenshots...");
+    await updateStep(
+      steps,
+      3,
+      "running",
+      callbacks,
+      undefined,
+      `Opening ${browserSession.label} for first-impression captures`,
+    );
+    out(`> Opening ${browserSession.label} — first thing a human sees...\n`);
+
+    const pages = settings.project.pages.length > 0
+      ? settings.project.pages
+      : [context.url];
+
+    try {
+      captures = await captureMultiplePages(pages, {
+        outputDir: join(context.reportDir, "screenshots"),
+        deviceProfile: settings.testing.deviceProfile,
+        viewports: settings.testing.viewports,
+        fullPage: settings.testing.screenshotFullPage,
+        delay: settings.testing.screenshotDelay,
+        showBrowser: settings.testing.showBrowser,
+      });
+      execution.browserSessions += pages.length;
+      execution.navigations += captures.length;
+      execution.screenshots += captures.length;
+      for (const cap of captures) {
+        out(`  📸 ${cap.device}: ${toProjectRelativePath(projectPath, cap.path)}\n`);
+      }
       await updateStep(
         steps,
         3,
-        "running",
+        captures.length > 0 ? "passed" : "failed",
         callbacks,
         undefined,
-        `Opening ${browserSession.label} for first-impression captures`,
+        captures.length > 0
+          ? `Saved ${captures.length} screenshot${captures.length === 1 ? "" : "s"} to ${toProjectRelativePath(projectPath, join(context.reportDir, "screenshots"))}`
+          : "Playwright ran but did not save any screenshots",
       );
-      out(`> Opening ${browserSession.label} — first thing a human sees...\n`);
-
-      const pages = settings.project.pages.length > 0
-        ? settings.project.pages
-        : [context.url];
-
-      try {
-        captures = await captureMultiplePages(pages, {
-          outputDir: join(context.reportDir, "screenshots"),
-          deviceProfile: settings.testing.deviceProfile,
-          viewports: settings.testing.viewports,
-          fullPage: settings.testing.screenshotFullPage,
-          delay: settings.testing.screenshotDelay,
-          showBrowser: settings.testing.showBrowser,
-        });
-        for (const cap of captures) {
-          out(`  📸 ${cap.device}: ${toProjectRelativePath(projectPath, cap.path)}\n`);
-        }
-        await updateStep(
-          steps,
-          3,
-          "passed",
-          callbacks,
-          undefined,
-          `Saved ${captures.length} screenshot${captures.length === 1 ? "" : "s"} to ${toProjectRelativePath(projectPath, join(context.reportDir, "screenshots"))}`,
-        );
-      } catch (err) {
-        out(`\n! Screenshot failed: ${String(err).slice(0, 100)}\n`);
-        await updateStep(steps, 3, "failed", callbacks, undefined, "Screenshot capture failed");
-      }
-
-      // ── Step 5: Compare with baselines ──────────────
-      callbacks.onPhaseChange("comparing", "Comparing with baselines...");
-      await updateStep(steps, 4, "running", callbacks);
-      if (captures.length > 0) {
-        out(`\n> Pixel-diffing against baselines...\n`);
-        const regressionFindings = await compareWithBaselines(captures, context, settings, provider, callbacks);
-        findings.push(...regressionFindings);
-      }
-      await updateStep(steps, 4, captures.length > 0 ? "passed" : "skipped", callbacks);
-    } else {
-      await updateStep(steps, 3, "skipped", callbacks);
-      await updateStep(steps, 4, "skipped", callbacks);
+    } catch (err) {
+      out(`\n! Screenshot failed: ${String(err).slice(0, 100)}\n`);
+      await updateStep(steps, 3, "failed", callbacks, undefined, "Screenshot capture failed");
     }
+
+    // ── Step 5: Compare with baselines ──────────────
+    callbacks.onPhaseChange("comparing", "Comparing with baselines...");
+    await updateStep(steps, 4, "running", callbacks);
+    if (captures.length > 0) {
+      out(`\n> Pixel-diffing against baselines...\n`);
+      const regressionFindings = await compareWithBaselines(captures, context, settings, provider, callbacks);
+      recordFindings(regressionFindings);
+    }
+    await updateStep(
+      steps,
+      4,
+      captures.length > 0 ? "passed" : "failed",
+      callbacks,
+      undefined,
+      captures.length > 0 ? undefined : "Cannot compare baselines without current screenshots",
+    );
 
     // ── Step 6: Walk the happy paths (real Playwright interactions) ──
-    if (context.url) {
-      callbacks.onPhaseChange("testing", personaProfile.phaseMessages.happyPath);
-      await updateStep(steps, 5, "running", callbacks, undefined, `Using ${browserSession.label}`);
-      out(`\n> ${settings.provider}: ${personaProfile.outputMessages.happyPath}\n\n`);
+    callbacks.onPhaseChange("testing", personaProfile.phaseMessages.happyPath);
+    await updateStep(steps, 5, "running", callbacks, undefined, `Using ${browserSession.label}`);
+    out(`\n> ${settings.provider}: ${personaProfile.outputMessages.happyPath}\n\n`);
 
-      const happyPathResult = await streamAnalyze(context, [
-        { role: "system", content: buildSystemPrompt(persona) },
-        { role: "user", content: buildHappyPathPrompt(context, testPlan, pageMap) },
-      ]);
+    const happyPathResult = await streamAnalyze(context, [
+      { role: "system", content: buildSystemPrompt(persona, memory) },
+      { role: "user", content: buildHappyPathPrompt(context, testPlan, pageMap) },
+    ]);
 
-      const happyScenarios = parseScenarios(happyPathResult);
-      if (happyScenarios.length > 0 && context.url) {
-        out(`\n> Executing ${happyScenarios.length} happy-path scenarios in browser...\n`);
-        const happyFindings = await executeScenarios(
-          happyScenarios, context, settings, out,
-        );
-        findings.push(...happyFindings);
-      }
-      await updateStep(steps, 5, "passed", callbacks);
-
-      // ── Step 7: Try to break things (adversarial testing) ──
-      callbacks.onPhaseChange("breaking", personaProfile.phaseMessages.breaking);
-      await updateStep(steps, 6, "running", callbacks, undefined, `Using ${browserSession.label}`);
-      out(`\n> ${settings.provider}: ${personaProfile.outputMessages.breaking}\n\n`);
-
-      const breakResult = await streamAnalyze(context, [
-        { role: "system", content: buildSystemPrompt(persona) },
-        { role: "user", content: buildBreakItPrompt(context, testPlan, pageMap) },
-      ]);
-
-      const breakScenarios = parseScenarios(breakResult);
-      if (breakScenarios.length > 0) {
-        out(`\n> Executing ${breakScenarios.length} adversarial scenarios...\n`);
-        const breakFindings = await executeScenarios(
-          breakScenarios, context, settings, out,
-        );
-        findings.push(...breakFindings);
-      }
-      await updateStep(steps, 6, "passed", callbacks);
-
-      // ── Step 8: Edge cases & boundary testing ──────────
-      callbacks.onPhaseChange("breaking", personaProfile.phaseMessages.edgeCases);
-      await updateStep(steps, 7, "running", callbacks, undefined, `Using ${browserSession.label}`);
-      out(`\n> ${settings.provider}: ${personaProfile.outputMessages.edgeCases}\n\n`);
-
-      const edgeResult = await streamAnalyze(context, [
-        { role: "system", content: buildSystemPrompt(persona) },
-        { role: "user", content: buildEdgeCasePrompt(context, testPlan, pageMap) },
-      ]);
-
-      const edgeScenarios = parseScenarios(edgeResult);
-      if (edgeScenarios.length > 0) {
-        out(`\n> Executing ${edgeScenarios.length} edge-case scenarios...\n`);
-        const edgeFindings = await executeScenarios(
-          edgeScenarios, context, settings, out,
-        );
-        findings.push(...edgeFindings);
-      }
-      await updateStep(steps, 7, "passed", callbacks);
-    } else {
-      await updateStep(steps, 5, "skipped", callbacks);
-      await updateStep(steps, 6, "skipped", callbacks);
-      await updateStep(steps, 7, "skipped", callbacks);
+    const happyScenarios = parseScenarios(happyPathResult);
+    execution.scenariosPlanned += happyScenarios.length;
+    let happyExecution: ScenarioExecutionResult | null = null;
+    if (happyScenarios.length > 0) {
+      out(`\n> Executing ${happyScenarios.length} happy-path scenarios in browser...\n`);
+      happyExecution = await executeScenarios(
+        happyScenarios, context, settings, out,
+      );
+      execution.browserSessions += happyExecution.browserSessions;
+      execution.navigations += happyExecution.navigations;
+      execution.screenshots += happyExecution.screenshots;
+      execution.scenariosExecuted += happyExecution.executedScenarios;
+      recordFindings(happyExecution.findings);
     }
+    await updateStep(
+      steps,
+      5,
+      happyExecution && happyExecution.executedScenarios > 0 && !happyExecution.error ? "passed" : "failed",
+      callbacks,
+      undefined,
+      happyExecution && happyExecution.executedScenarios > 0 && !happyExecution.error
+        ? `Executed ${happyExecution.executedScenarios} scenario${happyExecution.executedScenarios === 1 ? "" : "s"} with ${happyExecution.navigations} navigations and ${happyExecution.screenshots} screenshots`
+        : happyScenarios.length === 0
+          ? "Provider returned no executable happy-path browser scenarios"
+          : happyExecution?.error ?? "Playwright did not complete a happy-path scenario",
+    );
+
+    // ── Step 7: Try to break things (adversarial testing) ──
+    callbacks.onPhaseChange("breaking", personaProfile.phaseMessages.breaking);
+    await updateStep(steps, 6, "running", callbacks, undefined, `Using ${browserSession.label}`);
+    out(`\n> ${settings.provider}: ${personaProfile.outputMessages.breaking}\n\n`);
+
+    const breakResult = await streamAnalyze(context, [
+      { role: "system", content: buildSystemPrompt(persona, memory) },
+      { role: "user", content: buildBreakItPrompt(context, testPlan, pageMap) },
+    ]);
+
+    const breakScenarios = parseScenarios(breakResult);
+    execution.scenariosPlanned += breakScenarios.length;
+    let breakExecution: ScenarioExecutionResult | null = null;
+    if (breakScenarios.length > 0) {
+      out(`\n> Executing ${breakScenarios.length} adversarial scenarios...\n`);
+      breakExecution = await executeScenarios(
+        breakScenarios, context, settings, out,
+      );
+      execution.browserSessions += breakExecution.browserSessions;
+      execution.navigations += breakExecution.navigations;
+      execution.screenshots += breakExecution.screenshots;
+      execution.scenariosExecuted += breakExecution.executedScenarios;
+      recordFindings(breakExecution.findings);
+    }
+    await updateStep(
+      steps,
+      6,
+      breakExecution && breakExecution.executedScenarios > 0 && !breakExecution.error ? "passed" : "failed",
+      callbacks,
+      undefined,
+      breakExecution && breakExecution.executedScenarios > 0 && !breakExecution.error
+        ? `Executed ${breakExecution.executedScenarios} scenario${breakExecution.executedScenarios === 1 ? "" : "s"} with ${breakExecution.navigations} navigations and ${breakExecution.screenshots} screenshots`
+        : breakScenarios.length === 0
+          ? "Provider returned no executable recovery/adversarial browser scenarios"
+          : breakExecution?.error ?? "Playwright did not complete an adversarial scenario",
+    );
+
+    // ── Step 8: Edge cases & boundary testing ──────────
+    callbacks.onPhaseChange("breaking", personaProfile.phaseMessages.edgeCases);
+    await updateStep(steps, 7, "running", callbacks, undefined, `Using ${browserSession.label}`);
+    out(`\n> ${settings.provider}: ${personaProfile.outputMessages.edgeCases}\n\n`);
+
+    const edgeResult = await streamAnalyze(context, [
+      { role: "system", content: buildSystemPrompt(persona, memory) },
+      { role: "user", content: buildEdgeCasePrompt(context, testPlan, pageMap) },
+    ]);
+
+    const edgeScenarios = parseScenarios(edgeResult);
+    execution.scenariosPlanned += edgeScenarios.length;
+    let edgeExecution: ScenarioExecutionResult | null = null;
+    if (edgeScenarios.length > 0) {
+      out(`\n> Executing ${edgeScenarios.length} edge-case scenarios...\n`);
+      edgeExecution = await executeScenarios(
+        edgeScenarios, context, settings, out,
+      );
+      execution.browserSessions += edgeExecution.browserSessions;
+      execution.navigations += edgeExecution.navigations;
+      execution.screenshots += edgeExecution.screenshots;
+      execution.scenariosExecuted += edgeExecution.executedScenarios;
+      recordFindings(edgeExecution.findings);
+    }
+    await updateStep(
+      steps,
+      7,
+      edgeExecution && edgeExecution.executedScenarios > 0 && !edgeExecution.error ? "passed" : "failed",
+      callbacks,
+      undefined,
+      edgeExecution && edgeExecution.executedScenarios > 0 && !edgeExecution.error
+        ? `Executed ${edgeExecution.executedScenarios} scenario${edgeExecution.executedScenarios === 1 ? "" : "s"} with ${edgeExecution.navigations} navigations and ${edgeExecution.screenshots} screenshots`
+        : edgeScenarios.length === 0
+          ? "Provider returned no executable edge-case browser scenarios"
+          : edgeExecution?.error ?? "Playwright did not complete an edge-case scenario",
+    );
 
     // ── Step 9: Accessibility & keyboard-only ────────────
     callbacks.onPhaseChange("testing", personaProfile.phaseMessages.accessibility);
     await updateStep(steps, 8, "running", callbacks, undefined, `Using ${browserSession.label}`);
 
-    if (context.url) {
-      out(`\n> Running real keyboard-only navigation test...\n`);
-      const a11yFindings = await testAccessibility(context, settings, out);
-      findings.push(...a11yFindings);
+    out(`\n> Running real keyboard-only navigation test...\n`);
+    const a11yResult = await testAccessibility(context, settings, out);
+    execution.browserSessions += a11yResult.browserSessions;
+    execution.navigations += a11yResult.navigations;
+    execution.screenshots += a11yResult.screenshots;
+    recordFindings(a11yResult.findings);
 
-      out(`\n> ${settings.provider}: ${personaProfile.outputMessages.accessibility}\n\n`);
-      const a11yAiResult = await streamAnalyze(context, [
-        { role: "system", content: buildSystemPrompt(persona) },
-        { role: "user", content: buildAccessibilityPrompt(context, pageMap) },
-      ]);
-      findings.push(...parseFindings(a11yAiResult));
-    }
-    await updateStep(steps, 8, context.url ? "passed" : "skipped", callbacks);
+    out(`\n> ${settings.provider}: ${personaProfile.outputMessages.accessibility}\n\n`);
+    const a11yAiResult = await streamAnalyze(context, [
+      { role: "system", content: buildSystemPrompt(persona, memory) },
+      { role: "user", content: buildAccessibilityPrompt(context, pageMap) },
+    ]);
+    recordFindings(parseFindings(a11yAiResult));
+
+    await updateStep(
+      steps,
+      8,
+      a11yResult.completed && !a11yResult.error ? "passed" : "failed",
+      callbacks,
+      undefined,
+      a11yResult.completed && !a11yResult.error
+        ? `Verified keyboard navigation with ${a11yResult.navigations} navigation and ${a11yResult.screenshots} screenshot`
+        : a11yResult.error ?? "Accessibility browser check did not complete",
+    );
 
     // ── Step 10: Generate report ────────────────────────
     callbacks.onPhaseChange("reporting", "Generating report...");
     await updateStep(steps, 9, "running", callbacks);
+
+    execution.evidenceMet = execution.navigations > 0 && execution.screenshots > 0;
+
+    const failedSteps = steps.filter((step) => step.status === "failed");
+    if (failedSteps.length > 0 || !execution.evidenceMet) {
+      recordFindings([
+        buildExecutionIntegrityFinding(context, failedSteps, execution),
+      ]);
+    }
 
     const report: TestReport = {
       id: runId,
@@ -302,6 +421,7 @@ export async function runTestSession(
       provider: settings.provider,
       context,
       findings,
+      execution,
       summary: {
         totalTests: steps.length,
         passed: steps.filter((s) => s.status === "passed").length,
@@ -314,6 +434,24 @@ export async function runTestSession(
 
     await saveReport(context.reportDir, report);
     out(`\n> Report saved: ${report.id}.json\n`);
+    out(`> Browser evidence: ${execution.navigations} navigation${execution.navigations === 1 ? "" : "s"}, ${execution.screenshots} screenshot${execution.screenshots === 1 ? "" : "s"}\n`);
+
+    // ── Update memory ────────────────────────────────
+    out(`> Updating app memory...\n`);
+    try {
+      const memoryUpdate = await streamAnalyze(context, [
+        { role: "system", content: buildMemoryPrompt() },
+        { role: "user", content: buildMemoryUpdateRequest(context, memory, report, projectInfo) },
+      ]);
+      const updatedMemory = extractMemoryContent(memoryUpdate);
+      if (updatedMemory) {
+        await saveMemory(projectPath, updatedMemory);
+        out(`> Memory saved to .getwired/memory.md\n`);
+      }
+    } catch {
+      out(`> Memory update skipped (non-critical)\n`);
+    }
+
     await updateStep(steps, 9, "passed", callbacks);
 
     callbacks.onPhaseChange("done", "Testing complete!");
@@ -463,10 +601,20 @@ const PERSONA_PROFILES: Record<TestPersona, PersonaProfile> = {
   },
 };
 
-function buildSystemPrompt(persona: TestPersona): string {
+function buildSystemPrompt(persona: TestPersona, memory?: string): string {
   return `${BASE_SYSTEM_PROMPT}
 
-${PERSONA_PROMPT_APPENDIX[persona]}`;
+${PERSONA_PROMPT_APPENDIX[persona]}${memory ? `
+
+── App Memory (from previous test sessions) ──
+This is what you already know about this app from prior testing. Use this to:
+- **Prioritize Key Areas** listed at the top — these are ranked by importance and fragility
+- **Regression-check known bugs** — verify if they're fixed or still present
+- **Skip re-learning** — you already know the app structure, pages, forms, and navigation
+- **Hit fragile areas harder** — they broke before, they'll break again
+- **Use remembered selectors and timing tips** — don't waste time guessing
+
+${memory}` : ""}`;
 }
 
 function getPersonaProfile(persona: TestPersona): PersonaProfile {
@@ -739,6 +887,98 @@ Don't give generic advice. Look at what's actually on this site and report speci
 Return findings as a JSON array with severity, category "accessibility", and specific steps to reproduce.`;
 }
 
+// ─── Memory prompts ──────────────────────────────────────
+
+function buildMemoryPrompt(): string {
+  return `You are a testing memory system. Your job is to maintain a concise, structured markdown file that captures everything important about a web app across test sessions.
+
+Write in present tense. Be specific and factual. This memory will be read by an AI tester in future sessions to avoid re-learning the app from scratch.
+
+The memory file MUST always start with a header block in exactly this format:
+
+\`\`\`
+# App Name
+url: https://the-app-url.com
+last_tested: YYYY-MM-DD
+
+## Key Areas
+- area 1: short description
+- area 2: short description
+\`\`\`
+
+The url field is critical — it is used to automatically connect to the app in future sessions without the user having to type it.
+
+The Key Areas section lists the most important parts of the app to focus testing on, in priority order. Update this based on what you learn — areas that break often should be higher.
+
+Return ONLY the updated markdown content between \`\`\`memory and \`\`\` fences. No other text.`;
+}
+
+function buildMemoryUpdateRequest(
+  context: TestContext,
+  existingMemory: string,
+  report: TestReport,
+  projectInfo: string,
+): string {
+  const findingSummary = report.findings
+    .map((f) => `- [${f.severity}] ${f.title}: ${f.description.slice(0, 150)}`)
+    .join("\n");
+
+  return `Update the app memory based on this test session.
+
+${existingMemory ? `## Current Memory\n${existingMemory}\n` : "## No existing memory — create it from scratch.\n"}
+
+## This Session
+- URL: ${context.url}
+- Date: ${new Date().toISOString().split("T")[0]}
+- Persona: ${context.persona ?? "standard"}
+- Device: ${context.deviceProfile}
+- Tests: ${report.summary.passed} passed, ${report.summary.failed} failed, ${report.summary.warnings} warnings
+- Duration: ${Math.round(report.summary.duration / 1000)}s
+
+## Project Info
+${projectInfo}
+
+## Findings This Session
+${findingSummary || "No findings."}
+
+## Required structure
+The memory MUST start with this header (fill in real values):
+
+\`\`\`
+# App Name
+url: ${context.url}
+last_tested: ${new Date().toISOString().split("T")[0]}
+
+## Key Areas
+- (list the most important areas to test, ranked by how often they break or how critical they are)
+\`\`\`
+
+Then include these sections as needed:
+- **App structure**: What pages exist, main navigation, key features, routes discovered
+- **Tech stack**: Framework, notable libraries, API patterns
+- **Known bugs**: Issues found that are still present (remove if fixed in a later session)
+- **Fixed bugs**: Issues from previous sessions that are no longer reproducible — note the date fixed
+- **Fragile areas**: Parts of the app that tend to break or behave inconsistently
+- **Forms & inputs**: What forms exist, validation behavior, edge cases observed
+- **Auth & permissions**: Login flows, protected routes, role differences if any
+- **Performance notes**: Slow pages, heavy loads, timeout-prone areas
+- **Accessibility issues**: Persistent a11y problems
+- **Testing tips**: Selectors that work reliably, timing quirks, workarounds
+
+Keep it under 200 lines. Merge new findings with existing knowledge — don't just append. Remove outdated info.`;
+}
+
+function extractMemoryContent(response: string): string | null {
+  const match = response.match(/```memory\s*\n([\s\S]*?)```/);
+  if (match) return match[1].trim();
+  // Fallback: if the response is mostly markdown without fences, use it directly
+  const lines = response.trim().split("\n");
+  if (lines.length >= 3 && lines[0].startsWith("#")) {
+    return response.trim();
+  }
+  return null;
+}
+
 function getPersonaLabel(persona: TestPersona | undefined): string {
   switch (persona ?? "standard") {
     case "hacky": return "Hacky Testing";
@@ -892,12 +1132,20 @@ async function executeScenarios(
   context: TestContext,
   settings: GetwiredSettings,
   out: (text: string) => void,
-): Promise<TestFinding[]> {
+): Promise<ScenarioExecutionResult> {
   const findings: TestFinding[] = [];
+  const stats: ScenarioExecutionResult = {
+    findings,
+    browserSessions: 0,
+    navigations: 0,
+    screenshots: 0,
+    executedScenarios: 0,
+  };
 
   try {
     const { chromium } = await import("playwright");
     const browser = await chromium.launch(getBrowserSession(settings.testing.showBrowser).launchOptions);
+    stats.browserSessions++;
 
     for (const scenario of scenarios) {
       out(`\n  ── ${scenario.category}: ${scenario.name} ──\n`);
@@ -921,6 +1169,14 @@ async function executeScenarios(
 
       let currentUrl = context.url ?? "";
       let stepFailed = false;
+      let navigationOccurred = false;
+
+      if (context.url) {
+        await page.goto(context.url, { waitUntil: "domcontentloaded", timeout: 15_000 });
+        currentUrl = page.url();
+        stats.navigations++;
+        navigationOccurred = true;
+      }
 
       for (const action of scenario.actions) {
         if (stepFailed) break;
@@ -934,6 +1190,8 @@ async function executeScenarios(
               const resolvedUrl = target.startsWith("http") ? target : new URL(target, currentUrl).href;
               await page.goto(resolvedUrl, { waitUntil: "domcontentloaded", timeout: 15_000 });
               currentUrl = page.url();
+              stats.navigations++;
+              navigationOccurred = true;
               break;
             }
             case "click": {
@@ -991,6 +1249,7 @@ async function executeScenarios(
               );
               await mkdir(join(context.reportDir, "screenshots"), { recursive: true });
               await page.screenshot({ path: screenshotPath, fullPage: false });
+              stats.screenshots++;
               out(`      [screenshot saved: ${toProjectRelativePath(context.projectPath, screenshotPath)}]\n`);
               break;
             }
@@ -1071,17 +1330,23 @@ async function executeScenarios(
         );
         await mkdir(join(context.reportDir, "screenshots"), { recursive: true });
         await page.screenshot({ path: finalPath, fullPage: false });
+        stats.screenshots++;
       } catch { /* page may have navigated away */ }
 
+      if (navigationOccurred) {
+        stats.executedScenarios++;
+      }
       await page.close();
     }
 
     await browser.close();
   } catch (err) {
-    out(`\n! Browser execution failed: ${String(err).slice(0, 120)}\n`);
+    const error = `Browser execution failed: ${String(err).slice(0, 120)}`;
+    stats.error = error;
+    out(`\n! ${error}\n`);
   }
 
-  return findings;
+  return stats;
 }
 
 // ─── Real accessibility testing via Playwright ─────────────
@@ -1089,15 +1354,24 @@ async function testAccessibility(
   context: TestContext,
   settings: GetwiredSettings,
   out: (text: string) => void,
-): Promise<TestFinding[]> {
+): Promise<AccessibilityExecutionResult> {
   const findings: TestFinding[] = [];
-  if (!context.url) return findings;
+  const result: AccessibilityExecutionResult = {
+    findings,
+    browserSessions: 0,
+    navigations: 0,
+    screenshots: 0,
+    completed: false,
+  };
+  if (!context.url) return result;
 
   try {
     const { chromium } = await import("playwright");
     const browser = await chromium.launch(getBrowserSession(settings.testing.showBrowser).launchOptions);
+    result.browserSessions++;
     const page = await browser.newPage({ viewport: settings.testing.viewports.desktop });
     await page.goto(context.url, { waitUntil: "networkidle", timeout: 30_000 });
+    result.navigations++;
 
     // Tab through the entire page and check focus visibility
     out(`  Tabbing through the page...\n`);
@@ -1249,12 +1523,29 @@ async function testAccessibility(
       }
     }
 
+    try {
+      const screenshotPath = join(
+        context.reportDir,
+        "screenshots",
+        `accessibility-${Date.now().toString(36)}.png`,
+      );
+      await mkdir(join(context.reportDir, "screenshots"), { recursive: true });
+      await page.screenshot({ path: screenshotPath, fullPage: false });
+      result.screenshots++;
+      out(`  Accessibility screenshot: ${toProjectRelativePath(context.projectPath, screenshotPath)}\n`);
+    } catch {
+      out("  ! Accessibility screenshot failed\n");
+    }
+
+    result.completed = true;
     await browser.close();
   } catch (err) {
-    out(`  ! Accessibility test failed: ${String(err).slice(0, 80)}\n`);
+    const error = `Accessibility test failed: ${String(err).slice(0, 80)}`;
+    result.error = error;
+    out(`  ! ${error}\n`);
   }
 
-  return findings;
+  return result;
 }
 
 // ─── Helpers ───────────────────────────────────────────────
@@ -1315,6 +1606,24 @@ async function loadProjectNotes(projectPath: string): Promise<string> {
     }
   }
   return notes.join("\n\n");
+}
+
+async function loadMemory(projectPath: string): Promise<string> {
+  const memoryPath = getMemoryPath(projectPath);
+  if (!existsSync(memoryPath)) return "";
+  return await readFile(memoryPath, "utf-8");
+}
+
+async function saveMemory(projectPath: string, content: string): Promise<void> {
+  const memoryPath = getMemoryPath(projectPath);
+  await writeFile(memoryPath, content, "utf-8");
+}
+
+function parseMemoryUrl(memory: string): string | undefined {
+  if (!memory) return undefined;
+  // Match "url: http..." in the frontmatter-style header or anywhere in the first section
+  const match = memory.match(/^url:\s*(https?:\/\/\S+)/im);
+  return match?.[1];
 }
 
 async function compareWithBaselines(
@@ -1411,6 +1720,35 @@ function countPlanSteps(plan: string): number {
   }
 }
 
+function buildExecutionIntegrityFinding(
+  context: TestContext,
+  failedSteps: TestStep[],
+  execution: TestExecutionSummary,
+): TestFinding {
+  const problems: string[] = [];
+
+  if (!execution.evidenceMet) {
+    problems.push(
+      `Required Playwright evidence missing: ${execution.navigations} navigations and ${execution.screenshots} screenshots recorded.`,
+    );
+  }
+
+  if (failedSteps.length > 0) {
+    problems.push(`Failed steps: ${failedSteps.map((step) => step.name).join(", ")}.`);
+  }
+
+  return {
+    id: `execution-${generateId()}`,
+    severity: "high",
+    category: "functional",
+    title: !execution.evidenceMet
+      ? "Testing run did not produce required browser evidence"
+      : "Testing run did not complete all required browser phases",
+    description: problems.join(" "),
+    url: context.url,
+  };
+}
+
 async function updateStep(
   steps: TestStep[],
   index: number,
@@ -1439,4 +1777,94 @@ async function saveReport(reportDir: string, report: TestReport): Promise<string
   const filePath = join(reportDir, `${report.id}.json`);
   await writeFile(filePath, JSON.stringify(report, null, 2));
   return filePath;
+}
+
+// ─── Auto-detect dev server URL ────────────────────────
+interface FrameworkHint {
+  files: string[];
+  defaultPort: number;
+}
+
+const FRAMEWORK_HINTS: FrameworkHint[] = [
+  { files: ["next.config.js", "next.config.ts", "next.config.mjs"], defaultPort: 3000 },
+  { files: ["vite.config.ts", "vite.config.js", "vite.config.mjs"], defaultPort: 5173 },
+  { files: ["nuxt.config.ts", "nuxt.config.js"], defaultPort: 3000 },
+  { files: ["svelte.config.js"], defaultPort: 5173 },
+  { files: ["astro.config.mjs", "astro.config.ts"], defaultPort: 4321 },
+  { files: ["angular.json"], defaultPort: 4200 },
+  { files: ["gatsby-config.js", "gatsby-config.ts"], defaultPort: 8000 },
+  { files: ["remix.config.js", "remix.config.ts"], defaultPort: 3000 },
+];
+
+const COMMON_PORTS = [3000, 3001, 5173, 5174, 4200, 4321, 8000, 8080, 8888];
+
+function isPortOpen(port: number, host = "127.0.0.1"): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = createConnection({ port, host, timeout: 300 });
+    socket.on("connect", () => { socket.destroy(); resolve(true); });
+    socket.on("error", () => { resolve(false); });
+    socket.on("timeout", () => { socket.destroy(); resolve(false); });
+  });
+}
+
+async function detectProjectUrl(projectPath: string): Promise<string | undefined> {
+  // 1. Detect framework to prioritize its default port
+  let priorityPort: number | undefined;
+  for (const hint of FRAMEWORK_HINTS) {
+    for (const file of hint.files) {
+      if (existsSync(join(projectPath, file))) {
+        priorityPort = hint.defaultPort;
+        break;
+      }
+    }
+    if (priorityPort) break;
+  }
+
+  // Also check for monorepo — look inside common app directories
+  if (!priorityPort) {
+    const appDirs = ["apps/web", "apps/frontend", "app", "web", "frontend", "client"];
+    for (const dir of appDirs) {
+      const dirPath = join(projectPath, dir);
+      if (!existsSync(dirPath)) continue;
+      for (const hint of FRAMEWORK_HINTS) {
+        for (const file of hint.files) {
+          if (existsSync(join(dirPath, file))) {
+            priorityPort = hint.defaultPort;
+            break;
+          }
+        }
+        if (priorityPort) break;
+      }
+      if (priorityPort) break;
+    }
+  }
+
+  // 2. Check priority port first, then all common ports
+  const portsToCheck = priorityPort
+    ? [priorityPort, ...COMMON_PORTS.filter((p) => p !== priorityPort)]
+    : COMMON_PORTS;
+
+  for (const port of portsToCheck) {
+    if (await isPortOpen(port)) {
+      return `http://localhost:${port}`;
+    }
+  }
+
+  // 3. Try to parse port from package.json scripts
+  try {
+    const pkgPath = join(projectPath, "package.json");
+    if (existsSync(pkgPath)) {
+      const pkg = JSON.parse(await readFile(pkgPath, "utf-8"));
+      const devScript = pkg.scripts?.dev ?? pkg.scripts?.start ?? "";
+      const portMatch = devScript.match(/(?:--port|-p)\s+(\d+)/);
+      if (portMatch) {
+        const customPort = parseInt(portMatch[1], 10);
+        if (await isPortOpen(customPort)) {
+          return `http://localhost:${customPort}`;
+        }
+      }
+    }
+  } catch { /* ignore parse errors */ }
+
+  return undefined;
 }

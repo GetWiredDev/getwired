@@ -581,7 +581,7 @@ export function App({ mode, initProvider }: AppProps) {
             <Text color="green" dimColor>{getTestPersonaDescription(selectedTestPersona)}</Text>
             <TextInput
               label="Scope ▸ "
-              placeholder="e.g. login flow, checkout, forms, or a URL"
+              placeholder="e.g. login flow, checkout, forms, or a URL (auto-detects dev server)"
               onSubmit={(scope) => {
                 const isUrl = scope.startsWith("http");
                 const url = isUrl ? scope : (settings?.project.url ?? "");
@@ -734,12 +734,23 @@ export function App({ mode, initProvider }: AppProps) {
                   <Text color="green">
                     {testReport.summary.passed} passed · {testReport.summary.failed} failed · {testReport.summary.warnings} warnings
                   </Text>
+                  {testReport.execution && (
+                    <Text color={testReport.execution.evidenceMet ? "green" : "redBright"} dimColor={!testReport.execution.evidenceMet}>
+                      Browser evidence: {testReport.execution.navigations} navigations · {testReport.execution.screenshots} screenshots
+                    </Text>
+                  )}
                   <Text color="green" dimColor>
                     {testReport.summary.duration}ms · .getwired/reports/{testReport.id}/{testReport.id}.json
                   </Text>
-                  <Text color="green" dimColor>
-                    Screenshots: .getwired/reports/{testReport.id}/screenshots/
-                  </Text>
+                  {testReport.execution?.screenshots ? (
+                    <Text color="green" dimColor>
+                      Screenshots: .getwired/reports/{testReport.id}/screenshots/
+                    </Text>
+                  ) : (
+                    <Text color="redBright" dimColor>
+                      Screenshots: none captured
+                    </Text>
+                  )}
                 </Box>
               )}
 
