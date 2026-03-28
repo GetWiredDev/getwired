@@ -6,12 +6,12 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "turbo dev",
+    "dev": "turbo dev --filter=@getwired/web",
     "build": "turbo build",
     "lint": "turbo lint",
     "dev:web": "turbo dev --filter=@getwired/web",
-    "dev:cli": "turbo dev --filter=@getwired/cli",
-    "build:cli": "turbo build --filter=@getwired/cli"
+    "dev:cli": "turbo dev --filter=./packages/cli",
+    "build:cli": "turbo build --filter=./packages/cli"
   },
   "devDependencies": {
     "turbo": "^2.4.0"

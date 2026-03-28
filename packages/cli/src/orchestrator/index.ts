@@ -653,11 +653,12 @@ async function executeScenarios(
             }
             case "fill": {
               if (action.selector) {
-                const el = page.locator(action.selector).first();
+                const selector = action.selector;
+                const el = page.locator(selector).first();
                 await el.fill(action.value ?? "", { timeout: 5_000 }).catch(async () => {
                   // Try by placeholder as fallback
                   if (action.value !== undefined) {
-                    const byPlaceholder = page.getByPlaceholder(action.selector.replace(/[[\]"']/g, "")).first();
+                    const byPlaceholder = page.getByPlaceholder(selector.replace(/[[\]"']/g, "")).first();
                     await byPlaceholder.fill(action.value, { timeout: 3_000 });
                   }
                 });

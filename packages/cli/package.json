@@ -1,10 +1,21 @@
 {
   "name": "getwired",
-  "version": "0.1.0",
-  "description": "Human-like AI testing CLI",
+  "version": "0.0.1",
+  "description": "AI-powered CLI for visual regression and exploratory testing",
   "type": "module",
   "bin": {
-    "getwired": "./dist/cli.js"
+    "getwired": "dist/cli.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JaySym-ai/getwired.git"
+  },
+  "homepage": "https://github.com/JaySym-ai/getwired#readme",
+  "bugs": {
+    "url": "https://github.com/JaySym-ai/getwired/issues"
   },
   "files": [
     "dist"
@@ -18,6 +29,8 @@
     "testing",
     "cli",
     "ai",
+    "qa",
+    "e2e",
     "regression",
     "tui",
     "screenshot",
