@@ -6,6 +6,7 @@ import { MenuItem } from "./MenuItem.js";
 import { TextInput } from "./TextInput.js";
 import { TestProgress } from "./TestProgress.js";
 import { initConfig, configExists, loadConfig, saveConfig, getReportDir, getNotesDir } from "../config/settings.js";
+import { getRegressionContext } from "../git/context.js";
 import { getAvailableProviders } from "../providers/registry.js";
 import { runTestSession } from "../orchestrator/index.js";
 import { ProviderStream } from "./ProviderStream.js";
@@ -13,7 +14,7 @@ import { readFile, readdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { GetwiredSettings } from "../config/settings.js";
-import type { DeviceProfile, TestFinding, TestReport } from "../providers/types.js";
+import type { DeviceProfile, TestFinding, TestPersona, TestReport } from "../providers/types.js";
 import type { TestStep, TestPhase } from "../orchestrator/index.js";
 
 // ─── View types ──────────────────────────────────────────
@@ -21,9 +22,11 @@ type View =
   | "init-provider"
   | "init-scanning"
   | "dashboard"
+  | "test-mode"
   | "test-url"
   | "test-running"
   | "regression-input"
+  | "regression-custom-input"
   | "regression-running"
   | "baseline-url"
   | "baseline-running"
@@ -65,11 +68,15 @@ export function App({ mode, initProvider }: AppProps) {
   const [testReport, setTestReport] = useState<TestReport | null>(null);
   const [testError, setTestError] = useState<string | null>(null);
   const [providerOutput, setProviderOutput] = useState("");
+  const [testModeIndex, setTestModeIndex] = useState(0);
+  const [selectedTestPersona, setSelectedTestPersona] = useState<TestPersona>("standard");
+  const [activeTestPersona, setActiveTestPersona] = useState<TestPersona>("standard");
 
   // Regression
-  const [regressionMode, setRegressionMode] = useState<"commit" | "pr">("commit");
-  const [regressionValue, setRegressionValue] = useState("");
-  const [regressionModeSelect, setRegressionModeSelect] = useState(0);
+  const [regressionTargetIndex, setRegressionTargetIndex] = useState(0);
+  const [regressionInputMode, setRegressionInputMode] = useState<"pr" | "custom">("custom");
+  const [regressionError, setRegressionError] = useState<string | null>(null);
+  const [regressionContext, setRegressionContext] = useState(() => getRegressionContext(process.cwd()));
 
   // Reports
   const [reportFiles, setReportFiles] = useState<string[]>([]);
@@ -88,12 +95,14 @@ export function App({ mode, initProvider }: AppProps) {
   const [settingSaved, setSettingSaved] = useState(false);
 
   const providers = getAvailableProviders();
+  const regressionTargets = getRegressionTargets(regressionContext);
 
   // ─── Load config on mount ───────────────────────────
   useEffect(() => {
     if (configExists(process.cwd())) {
       loadConfig(process.cwd()).then(setSettings);
     }
+    setRegressionContext(getRegressionContext(process.cwd()));
   }, []);
 
   // Auto-init if provider flag given
@@ -137,13 +146,42 @@ export function App({ mode, initProvider }: AppProps) {
   }
 
   // ─── Run test ───────────────────────────────────────
-  function startTest(url: string, commitId?: string, prId?: string) {
+  function startTest(
+    url: string,
+    commitId?: string,
+    prId?: string,
+    nextView: Extract<View, "test-running" | "regression-running" | "baseline-running"> = "test-running",
+    persona: TestPersona = "standard",
+  ) {
     resetTestState();
+    setTestUrl(url);
+    setActiveTestPersona(persona);
+    setView(nextView);
+
+    runTestSession(
+      process.cwd(),
+      { url: url || undefined, commitId, prId, persona },
+      {
+        onPhaseChange: (p, msg) => { setTestPhase(p); setTestPhaseMsg(msg); },
+        onStepUpdate: (s) => setTestSteps([...s]),
+        onFinding: (f) => setTestFindings((prev) => [...prev, f]),
+        onLog: (msg) => setTestLogs((prev) => [...prev, msg].slice(-10)),
+        onProviderOutput: (text) => setProviderOutput((prev) => prev + text),
+      },
+    )
+      .then((r) => setTestReport(r))
+      .catch((err) => setTestError(String(err)));
+  }
+
+  function startScopedTest(url: string, scope: string | undefined, persona: TestPersona) {
+    resetTestState();
+    setTestUrl(url);
+    setActiveTestPersona(persona);
     setView("test-running");
 
     runTestSession(
       process.cwd(),
-      { url: url || undefined, commitId, prId },
+      { url: url || undefined, scope, persona },
       {
         onPhaseChange: (p, msg) => { setTestPhase(p); setTestPhaseMsg(msg); },
         onStepUpdate: (s) => setTestSteps([...s]),
@@ -233,6 +271,16 @@ export function App({ mode, initProvider }: AppProps) {
       // ── Test URL input ──
       // Handled by TextInput component
 
+      case "test-mode":
+        if (key.escape || input === "b") { setView("dashboard"); return; }
+        if (key.upArrow) setTestModeIndex((p) => Math.max(0, p - 1));
+        if (key.downArrow) setTestModeIndex((p) => Math.min(TEST_PERSONAS.length - 1, p + 1));
+        if (key.return) {
+          setSelectedTestPersona(TEST_PERSONAS[testModeIndex].id);
+          setView("test-url");
+        }
+        break;
+
       // ── Test running ──
       case "test-running":
       case "regression-running":
@@ -245,11 +293,31 @@ export function App({ mode, initProvider }: AppProps) {
       // ── Regression mode select ──
       case "regression-input":
         if (key.escape || input === "b") { setView("dashboard"); return; }
-        if (!regressionValue) {
-          // Still selecting commit vs PR
-          if (key.upArrow || key.downArrow) {
-            setRegressionModeSelect((p) => p === 0 ? 1 : 0);
+        if (key.upArrow) {
+          setRegressionTargetIndex((p) => Math.max(0, p - 1));
+          setRegressionError(null);
+        }
+        if (key.downArrow) {
+          setRegressionTargetIndex((p) => Math.min(regressionTargets.length - 1, p + 1));
+          setRegressionError(null);
+        }
+        if (key.return) {
+          const selectedTarget = regressionTargets[regressionTargetIndex];
+          if (!selectedTarget) break;
+          setRegressionError(null);
+          if (selectedTarget.kind === "commit" && selectedTarget.value) {
+            startTest(settings?.project.url ?? "", selectedTarget.value, undefined, "regression-running");
+          } else {
+            setRegressionInputMode(selectedTarget.kind === "pr" ? "pr" : "custom");
+            setView("regression-custom-input");
           }
+        }
+        break;
+
+      case "regression-custom-input":
+        if (key.escape || input === "b") {
+          setRegressionError(null);
+          setView("regression-input");
         }
         break;
 
@@ -305,8 +373,19 @@ export function App({ mode, initProvider }: AppProps) {
 
   function handleMenuSelect(action: string) {
     switch (action) {
-      case "test": setTestUrl(""); setView("test-url"); break;
-      case "regression": setRegressionValue(""); setRegressionModeSelect(0); setView("regression-input"); break;
+      case "test":
+        setTestUrl("");
+        setTestModeIndex(0);
+        setSelectedTestPersona("standard");
+        setView("test-mode");
+        break;
+      case "regression":
+        setRegressionTargetIndex(0);
+        setRegressionInputMode("custom");
+        setRegressionError(null);
+        setRegressionContext(getRegressionContext(process.cwd()));
+        setView("regression-input");
+        break;
       case "baseline": setTestUrl(""); setView("baseline-url"); break;
       case "reports": loadReportsList(); break;
       case "notes": loadNotes(); break;
@@ -320,7 +399,7 @@ export function App({ mode, initProvider }: AppProps) {
     const getMaxIndex = () => {
       if (section === "provider") return providers.length - 1;
       if (section === "device") return 2;
-      if (section === "screenshot") return 7;
+      if (section === "screenshot") return 9;
       if (section === "reporting") return 2;
       return 0;
     };
@@ -346,6 +425,8 @@ export function App({ mode, initProvider }: AppProps) {
           case 5: t.diffThreshold = 0.01; break;
           case 6: t.diffThreshold = 0.05; break;
           case 7: t.diffThreshold = 0.10; break;
+          case 8: t.showBrowser = true; break;
+          case 9: t.showBrowser = false; break;
         }
         updated.testing = t;
       } else if (section === "reporting") {
@@ -458,15 +539,46 @@ export function App({ mode, initProvider }: AppProps) {
         </>
       )}
 
+      {/* ── Test: Mode Select ── */}
+      {view === "test-mode" && (
+        <>
+          <Header subtitle="Run Tests" />
+          <Box flexDirection="column" paddingX={2} gap={1}>
+            <Text color="greenBright" bold>◆ Choose the kind of test run:</Text>
+            <Box flexDirection="column" marginY={1}>
+              {TEST_PERSONAS.map((persona, i) => (
+                <Box key={persona.id} gap={1}>
+                  <Text color={i === testModeIndex ? "greenBright" : "green"}>
+                    {i === testModeIndex ? " ▸ " : "   "}
+                  </Text>
+                  <Text color={i === testModeIndex ? "greenBright" : "green"} bold={i === testModeIndex}>
+                    {persona.label}
+                  </Text>
+                  <Text color="green" dimColor>
+                    — {persona.description}
+                  </Text>
+                </Box>
+              ))}
+            </Box>
+            <Box marginTop={1} gap={2}>
+              <Text color="green" dimColor>[↑↓] Select mode</Text>
+              <Text color="green" dimColor>[Enter] Continue</Text>
+              <Text color="green" dimColor>[Esc] Back</Text>
+            </Box>
+          </Box>
+        </>
+      )}
+
       {/* ── Test: What to test ── */}
       {view === "test-url" && (
         <>
-          <Header subtitle="Run Tests" />
+          <Header subtitle={getTestPersonaLabel(selectedTestPersona)} />
           <Box flexDirection="column" paddingX={2} gap={1}>
             {settings?.project.url && (
               <Text color="green" dimColor>Target: {settings.project.url}</Text>
             )}
-            <Text color="greenBright" bold>◆ What should I focus on? (leave blank for full test)</Text>
+            <Text color="greenBright" bold>{getTestPersonaPrompt(selectedTestPersona)}</Text>
+            <Text color="green" dimColor>{getTestPersonaDescription(selectedTestPersona)}</Text>
             <TextInput
               label="Scope ▸ "
               placeholder="e.g. login flow, checkout, forms, or a URL"
@@ -474,28 +586,13 @@ export function App({ mode, initProvider }: AppProps) {
                 const isUrl = scope.startsWith("http");
                 const url = isUrl ? scope : (settings?.project.url ?? "");
                 const testScope = isUrl ? undefined : (scope || undefined);
-                setTestUrl(url);
-                resetTestState();
-                setView("test-running");
-                runTestSession(
-                  process.cwd(),
-                  { url: url || undefined, scope: testScope },
-                  {
-                    onPhaseChange: (p, msg) => { setTestPhase(p); setTestPhaseMsg(msg); },
-                    onStepUpdate: (s) => setTestSteps([...s]),
-                    onFinding: (f) => setTestFindings((prev) => [...prev, f]),
-                    onLog: (msg) => setTestLogs((prev) => [...prev, msg].slice(-10)),
-                    onProviderOutput: (text) => setProviderOutput((prev) => prev + text),
-                  },
-                )
-                  .then((r) => setTestReport(r))
-                  .catch((err) => setTestError(String(err)));
+                startScopedTest(url, testScope, selectedTestPersona);
               }}
-              onCancel={() => setView("dashboard")}
+              onCancel={() => setView("test-mode")}
             />
             <Box marginTop={1} gap={2}>
               <Text color="green" dimColor>[Enter] Start testing</Text>
-              <Text color="green" dimColor>[Esc] Back to dashboard</Text>
+              <Text color="green" dimColor>[Esc] Back to mode select</Text>
             </Box>
           </Box>
         </>
@@ -510,7 +607,7 @@ export function App({ mode, initProvider }: AppProps) {
             <TextInput
               label="URL ▸ "
               placeholder="https://your-site.com"
-              onSubmit={(url) => { setTestUrl(url); resetTestState(); setView("baseline-running"); startTest(url); }}
+              onSubmit={(url) => { setTestUrl(url); startTest(url, undefined, undefined, "baseline-running"); }}
               onCancel={() => setView("dashboard")}
             />
             <Box marginTop={1} gap={2}>
@@ -528,35 +625,73 @@ export function App({ mode, initProvider }: AppProps) {
           <Box flexDirection="column" paddingX={2} gap={1}>
             <Text color="greenBright" bold>◆ What do you want to test against?</Text>
             <Box flexDirection="column" marginY={1}>
-              {["Commit ID", "Pull Request #"].map((label, i) => (
-                <Box key={label} gap={1}>
-                  <Text color={i === regressionModeSelect ? "greenBright" : "green"}>
-                    {i === regressionModeSelect ? " ▸ " : "   "}
+              {regressionTargets.map((target, i) => (
+                <Box key={target.label} gap={1}>
+                  <Text color={i === regressionTargetIndex ? "greenBright" : "green"}>
+                    {i === regressionTargetIndex ? " ▸ " : "   "}
                   </Text>
-                  <Text color={i === regressionModeSelect ? "greenBright" : "green"} bold={i === regressionModeSelect}>
-                    {label}
+                  <Text color={i === regressionTargetIndex ? "greenBright" : "green"} bold={i === regressionTargetIndex}>
+                    {target.label}
                   </Text>
+                  <Text color="green" dimColor>— {target.description}</Text>
                 </Box>
               ))}
             </Box>
+            {regressionError && (
+              <Text color="yellow">
+                {regressionError}
+              </Text>
+            )}
+            <Box marginTop={1} gap={2}>
+              <Text color="green" dimColor>[↑↓] Select target</Text>
+              <Text color="green" dimColor>[Enter] Continue</Text>
+              <Text color="green" dimColor>[Esc] Back</Text>
+            </Box>
+          </Box>
+        </>
+      )}
+
+      {view === "regression-custom-input" && (
+        <>
+          <Header subtitle="Regression Check" />
+          <Box flexDirection="column" paddingX={2} gap={1}>
+            <Text color="greenBright" bold>
+              {regressionInputMode === "pr"
+                ? "◆ Enter the pull request number to compare against:"
+                : "◆ Enter a custom baseline target:"}
+            </Text>
+            <Text color="green" dimColor>
+              {regressionInputMode === "pr"
+                ? "Example: 42"
+                : "Commit SHA, branch name, tag, or `#42` / `pr:42` for a pull request"}
+            </Text>
+            {regressionError && (
+              <Text color="yellow">
+                {regressionError}
+              </Text>
+            )}
             <TextInput
-              label={regressionModeSelect === 0 ? "Commit ▸ " : "PR # ▸ "}
-              placeholder={regressionModeSelect === 0 ? "abc1234" : "42"}
-              onSubmit={(val) => {
-                resetTestState();
-                setView("regression-running");
-                if (regressionModeSelect === 0) {
-                  startTest(settings?.project.url ?? "", val, undefined);
+              label={regressionInputMode === "pr" ? "PR # ▸ " : "Custom ▸ "}
+              placeholder={regressionInputMode === "pr" ? "42" : "abc1234, main, release-1.2, or #42"}
+              onSubmit={(value) => {
+                const trimmed = value.trim();
+                if (!trimmed) {
+                  setRegressionError("Enter a commit, branch, tag, or pull request number.");
+                  return;
+                }
+                setRegressionError(null);
+                const parsed = parseCustomRegressionInput(trimmed, regressionInputMode);
+                if (parsed.prId) {
+                  startTest(settings?.project.url ?? "", undefined, parsed.prId, "regression-running");
                 } else {
-                  startTest(settings?.project.url ?? "", undefined, val);
+                  startTest(settings?.project.url ?? "", parsed.commitId, undefined, "regression-running");
                 }
               }}
-              onCancel={() => setView("dashboard")}
+              onCancel={() => setView("regression-input")}
             />
             <Box marginTop={1} gap={2}>
-              <Text color="green" dimColor>[↑↓] Switch mode</Text>
-              <Text color="green" dimColor>[Enter] Run</Text>
-              <Text color="green" dimColor>[Esc] Back</Text>
+              <Text color="green" dimColor>[Enter] Run regression</Text>
+              <Text color="green" dimColor>[Esc] Back to selector</Text>
             </Box>
           </Box>
         </>
@@ -568,14 +703,14 @@ export function App({ mode, initProvider }: AppProps) {
           <Header subtitle={
             view === "regression-running" ? "Regression Check" :
             view === "baseline-running" ? "Capturing Baselines" :
-            testUrl ? `Testing · ${testUrl}` : "Running Tests"
+            testUrl ? `${getTestPersonaLabel(activeTestPersona)} · ${testUrl}` : getTestPersonaLabel(activeTestPersona)
           } />
           <StatusBar status={statusMap[testPhase] ?? "testing"} message={testPhaseMsg} />
 
           {/* ── Split Pane: Left = Progress | Right = Agent Feed ── */}
-          <Box flexDirection="row" marginY={1} minHeight={20}>
+          <Box flexDirection="row" marginY={1} minHeight={20} width="100%">
             {/* Left Panel: Progress + Findings */}
-            <Box flexDirection="column" width="50%">
+            <Box flexDirection="column" width="50%" flexGrow={0} flexShrink={0}>
               {testSteps.length > 0 && (
                 <TestProgress steps={testSteps} currentStep={Math.max(0, testSteps.findIndex((s) => s.status === "running"))} />
               )}
@@ -600,7 +735,10 @@ export function App({ mode, initProvider }: AppProps) {
                     {testReport.summary.passed} passed · {testReport.summary.failed} failed · {testReport.summary.warnings} warnings
                   </Text>
                   <Text color="green" dimColor>
-                    {testReport.summary.duration}ms · .getwired/reports/{testReport.id}.json
+                    {testReport.summary.duration}ms · .getwired/reports/{testReport.id}/{testReport.id}.json
+                  </Text>
+                  <Text color="green" dimColor>
+                    Screenshots: .getwired/reports/{testReport.id}/screenshots/
                   </Text>
                 </Box>
               )}
@@ -613,8 +751,12 @@ export function App({ mode, initProvider }: AppProps) {
             </Box>
 
             {/* Right Panel: Live Provider Output */}
-            <Box width="50%">
-              <ProviderStream output={providerOutput} providerName={settings?.provider} />
+            <Box width="50%" flexGrow={0} flexShrink={0}>
+              <ProviderStream
+                output={providerOutput}
+                providerName={settings?.provider}
+                isStreaming={!testReport && !testError && testPhase !== "done" && testPhase !== "error"}
+              />
             </Box>
           </Box>
 
@@ -803,7 +945,18 @@ export function App({ mode, initProvider }: AppProps) {
             {settingEditing === "screenshot" && (
               <Box flexDirection="column" paddingLeft={2}>
                 <Text color="greenBright" bold>Screenshot Settings:</Text>
-                {["Full page: ON", "Full page: OFF", "Delay: 500ms", "Delay: 1000ms", "Delay: 2000ms", "Threshold: 1%", "Threshold: 5%", "Threshold: 10%"].map((opt, i) => (
+                {[
+                  "Full page: ON",
+                  "Full page: OFF",
+                  "Delay: 500ms",
+                  "Delay: 1000ms",
+                  "Delay: 2000ms",
+                  "Threshold: 1%",
+                  "Threshold: 5%",
+                  "Threshold: 10%",
+                  "Show browser: ON",
+                  "Show browser: OFF",
+                ].map((opt, i) => (
                   <Box key={opt} gap={1}>
                     <Text color={i === settingEditIndex ? "greenBright" : "green"}>
                       {i === settingEditIndex ? " ▸ " : "   "}
@@ -871,12 +1024,83 @@ const SETTINGS_SECTIONS = [
   { key: "reporting", label: "Report Output", description: "Report format and behavior" },
 ];
 
+const TEST_PERSONAS: Array<{ id: TestPersona; label: string; description: string }> = [
+  { id: "standard", label: "Standard Testing", description: "Balanced QA coverage across normal flows, breakage, and edge cases" },
+  { id: "hacky", label: "Hacky Testing", description: "Probe routes, parameters, and unsafe assumptions like a hostile browser user" },
+  { id: "old-man", label: "Old Man Test", description: "Use the app like a hesitant older non-technical person and note confusion" },
+];
+
+interface RegressionTargetOption {
+  kind: "commit" | "pr" | "custom";
+  label: string;
+  description: string;
+  value?: string;
+}
+
 function getSettingValue(settings: GetwiredSettings, key: string): string {
   switch (key) {
     case "provider": return settings.provider;
     case "device": return settings.testing.deviceProfile;
-    case "screenshot": return `fullPage:${settings.testing.screenshotFullPage} delay:${settings.testing.screenshotDelay}ms threshold:${(settings.testing.diffThreshold * 100).toFixed(0)}%`;
+    case "screenshot": return `fullPage:${settings.testing.screenshotFullPage} delay:${settings.testing.screenshotDelay}ms threshold:${(settings.testing.diffThreshold * 100).toFixed(0)}% browser:${settings.testing.showBrowser ? "visible" : "headless"}`;
     case "reporting": return settings.reporting.outputFormat;
     default: return "";
   }
+}
+
+function getTestPersonaLabel(persona: TestPersona): string {
+  return TEST_PERSONAS.find((entry) => entry.id === persona)?.label ?? "Run Tests";
+}
+
+function getTestPersonaDescription(persona: TestPersona): string {
+  return TEST_PERSONAS.find((entry) => entry.id === persona)?.description ?? "";
+}
+
+function getTestPersonaPrompt(persona: TestPersona): string {
+  switch (persona) {
+    case "hacky":
+      return "◆ What should I probe or try to exploit? (leave blank to cover the whole app)";
+    case "old-man":
+      return "◆ What should I try to use as a confused first-time user? (leave blank for the main flows)";
+    default:
+      return "◆ What should I focus on? (leave blank for full test)";
+  }
+}
+
+function getRegressionTargets(regressionContext: ReturnType<typeof getRegressionContext>): RegressionTargetOption[] {
+  const targets: RegressionTargetOption[] = [];
+
+  if (regressionContext.defaultCommitId && regressionContext.description) {
+    targets.push({
+      kind: "commit",
+      label: regressionContext.source === "branch" ? "Suggested branch baseline" : "Latest commit baseline",
+      description: regressionContext.description,
+      value: regressionContext.defaultCommitId,
+    });
+  }
+
+  targets.push({
+    kind: "pr",
+    label: "Pull Request #",
+    description: "Compare against a specific pull request",
+  });
+
+  targets.push({
+    kind: "custom",
+    label: "Custom...",
+    description: "Enter a commit SHA, branch name, tag, or pull request manually",
+  });
+
+  return targets;
+}
+
+function parseCustomRegressionInput(
+  value: string,
+  mode: "pr" | "custom",
+): { commitId?: string; prId?: string } {
+  if (mode === "pr") return { prId: value.replace(/^#/, "") };
+
+  const prMatch = value.match(/^(?:pr:|#)(\d+)$/i);
+  if (prMatch) return { prId: prMatch[1] };
+
+  return { commitId: value };
 }

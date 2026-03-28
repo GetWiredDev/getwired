@@ -5,6 +5,7 @@ interface ProviderStreamProps {
   output: string;
   providerName?: string;
   maxLines?: number;
+  isStreaming?: boolean;
 }
 
 const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
@@ -16,7 +17,12 @@ function formatElapsed(ms: number): string {
   return `${mins}m ${secs % 60}s`;
 }
 
-export function ProviderStream({ output, providerName, maxLines = 26 }: ProviderStreamProps) {
+export function ProviderStream({
+  output,
+  providerName,
+  maxLines = 10,
+  isStreaming = true,
+}: ProviderStreamProps) {
   const [tick, setTick] = useState(0);
   const lastOutputLen = useRef(output.length);
   const lastChangeTime = useRef(Date.now());
@@ -42,7 +48,6 @@ export function ProviderStream({ output, providerName, maxLines = 26 }: Provider
   // Split output into lines and take the last N
   const allLines = output.split("\n");
   const visible = allLines.slice(-maxLines);
-  const isStreaming = !output.endsWith("\n> Report saved:");
 
   return (
     <Box
@@ -51,8 +56,9 @@ export function ProviderStream({ output, providerName, maxLines = 26 }: Provider
       borderColor="green"
       paddingX={1}
       paddingY={0}
-      flexGrow={1}
-      minWidth={36}
+      width="100%"
+      flexGrow={0}
+      flexShrink={0}
     >
       {/* Header */}
       <Box gap={1} marginBottom={0}>

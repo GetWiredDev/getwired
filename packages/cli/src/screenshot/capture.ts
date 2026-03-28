@@ -1,5 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
+import { getBrowserSession } from "../browser/session.js";
 import type { DeviceProfile } from "../providers/types.js";
 
 export interface CaptureOptions {
@@ -13,6 +14,7 @@ export interface CaptureOptions {
   fullPage: boolean;
   delay: number;
   label?: string;
+  showBrowser?: boolean;
 }
 
 export interface CaptureResult {
@@ -38,7 +40,7 @@ export async function captureScreenshots(options: CaptureOptions): Promise<Captu
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
   const slug = slugify(options.url);
 
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch(getBrowserSession(options.showBrowser ?? false).launchOptions);
 
   try {
     for (const device of devicesToTest) {

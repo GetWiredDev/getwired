@@ -1,7 +1,8 @@
 import { readFile, writeFile, readdir, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { execSync } from "node:child_process";
+import { getBrowserSession } from "../browser/session.js";
 import { getProvider } from "../providers/registry.js";
 import { loadConfig, getBaselineDir, getReportDir, getNotesDir } from "../config/settings.js";
 import { captureScreenshots, captureMultiplePages } from "../screenshot/capture.js";
@@ -10,6 +11,7 @@ import type {
   TestContext,
   TestReport,
   TestFinding,
+  TestPersona,
   TestingProvider,
 } from "../providers/types.js";
 import type { GetwiredSettings } from "../config/settings.js";
@@ -67,12 +69,16 @@ export async function runTestSession(
     commitId?: string;
     prId?: string;
     scope?: string;
+    persona?: TestPersona;
   },
   callbacks: OrchestratorCallbacks,
 ): Promise<TestReport> {
   const startTime = Date.now();
   const settings = await loadConfig(projectPath);
   const provider = getProvider(settings.provider);
+  const browserSession = getBrowserSession(settings.testing.showBrowser);
+  const persona = options.persona ?? "standard";
+  const personaProfile = getPersonaProfile(persona);
   const findings: TestFinding[] = [];
 
   const runId = generateId();
@@ -82,6 +88,7 @@ export async function runTestSession(
     commitId: options.commitId,
     prId: options.prId,
     scope: options.scope,
+    persona,
     deviceProfile: settings.testing.deviceProfile,
     baselineDir: getBaselineDir(projectPath),
     reportDir: join(getReportDir(projectPath), runId),
@@ -89,18 +96,7 @@ export async function runTestSession(
 
   await mkdir(context.reportDir, { recursive: true });
 
-  const steps: TestStep[] = [
-    { name: "Scan project structure", status: "pending" },
-    { name: "Load project context & notes", status: "pending" },
-    { name: "Reconnaissance & test planning", status: "pending" },
-    { name: "First impression & screenshots", status: "pending" },
-    { name: "Compare with baselines", status: "pending" },
-    { name: "Walk the happy paths", status: "pending" },
-    { name: "Try to break things", status: "pending" },
-    { name: "Poke at edge cases & boundaries", status: "pending" },
-    { name: "Accessibility & keyboard-only", status: "pending" },
-    { name: "Generate report", status: "pending" },
-  ];
+  const steps: TestStep[] = personaProfile.stepNames.map((name) => ({ name, status: "pending" }));
 
   callbacks.onStepUpdate(steps);
 
@@ -137,18 +133,18 @@ export async function runTestSession(
     await updateStep(steps, 1, "passed", callbacks);
 
     // ── Step 3: Reconnaissance — AI explores like a human would ──
-    callbacks.onPhaseChange("planning", "Exploring the site like a human tester...");
+    callbacks.onPhaseChange("planning", personaProfile.phaseMessages.planning);
     await updateStep(steps, 2, "running", callbacks);
-    out(`> ${settings.provider}: exploring the site and planning attacks...\n\n`);
+    out(`> ${settings.provider}: ${personaProfile.outputMessages.planning}\n\n`);
 
     let pageMap = "";
     if (context.url) {
       out(`> Crawling visible links and forms...\n`);
-      pageMap = await crawlSiteMap(context.url, out);
+      pageMap = await crawlSiteMap(context.url, out, settings.testing.showBrowser);
     }
 
     const testPlan = await streamAnalyze(context, [
-      { role: "system", content: SYSTEM_PROMPT },
+      { role: "system", content: buildSystemPrompt(persona) },
       { role: "user", content: buildReconPrompt(context, projectInfo, notes, pageMap) },
     ]);
     callbacks.onLog(`Test plan generated with ${countPlanSteps(testPlan)} scenarios`);
@@ -159,8 +155,15 @@ export async function runTestSession(
 
     if (context.url) {
       callbacks.onPhaseChange("capturing-current", "Taking first-impression screenshots...");
-      await updateStep(steps, 3, "running", callbacks);
-      out(`> Opening browser — first thing a human sees...\n`);
+      await updateStep(
+        steps,
+        3,
+        "running",
+        callbacks,
+        undefined,
+        `Opening ${browserSession.label} for first-impression captures`,
+      );
+      out(`> Opening ${browserSession.label} — first thing a human sees...\n`);
 
       const pages = settings.project.pages.length > 0
         ? settings.project.pages
@@ -173,12 +176,22 @@ export async function runTestSession(
           viewports: settings.testing.viewports,
           fullPage: settings.testing.screenshotFullPage,
           delay: settings.testing.screenshotDelay,
+          showBrowser: settings.testing.showBrowser,
         });
-        for (const cap of captures) out(`  📸 ${cap.device}: ${cap.url}\n`);
-        await updateStep(steps, 3, "passed", callbacks);
+        for (const cap of captures) {
+          out(`  📸 ${cap.device}: ${toProjectRelativePath(projectPath, cap.path)}\n`);
+        }
+        await updateStep(
+          steps,
+          3,
+          "passed",
+          callbacks,
+          undefined,
+          `Saved ${captures.length} screenshot${captures.length === 1 ? "" : "s"} to ${toProjectRelativePath(projectPath, join(context.reportDir, "screenshots"))}`,
+        );
       } catch (err) {
         out(`\n! Screenshot failed: ${String(err).slice(0, 100)}\n`);
-        await updateStep(steps, 3, "failed", callbacks);
+        await updateStep(steps, 3, "failed", callbacks, undefined, "Screenshot capture failed");
       }
 
       // ── Step 5: Compare with baselines ──────────────
@@ -197,12 +210,12 @@ export async function runTestSession(
 
     // ── Step 6: Walk the happy paths (real Playwright interactions) ──
     if (context.url) {
-      callbacks.onPhaseChange("testing", "Walking the happy paths...");
-      await updateStep(steps, 5, "running", callbacks);
-      out(`\n> ${settings.provider}: planning happy-path walkthroughs...\n\n`);
+      callbacks.onPhaseChange("testing", personaProfile.phaseMessages.happyPath);
+      await updateStep(steps, 5, "running", callbacks, undefined, `Using ${browserSession.label}`);
+      out(`\n> ${settings.provider}: ${personaProfile.outputMessages.happyPath}\n\n`);
 
       const happyPathResult = await streamAnalyze(context, [
-        { role: "system", content: SYSTEM_PROMPT },
+        { role: "system", content: buildSystemPrompt(persona) },
         { role: "user", content: buildHappyPathPrompt(context, testPlan, pageMap) },
       ]);
 
@@ -217,12 +230,12 @@ export async function runTestSession(
       await updateStep(steps, 5, "passed", callbacks);
 
       // ── Step 7: Try to break things (adversarial testing) ──
-      callbacks.onPhaseChange("breaking", "Trying to break things...");
-      await updateStep(steps, 6, "running", callbacks);
-      out(`\n> ${settings.provider}: thinking of ways to break this...\n\n`);
+      callbacks.onPhaseChange("breaking", personaProfile.phaseMessages.breaking);
+      await updateStep(steps, 6, "running", callbacks, undefined, `Using ${browserSession.label}`);
+      out(`\n> ${settings.provider}: ${personaProfile.outputMessages.breaking}\n\n`);
 
       const breakResult = await streamAnalyze(context, [
-        { role: "system", content: SYSTEM_PROMPT },
+        { role: "system", content: buildSystemPrompt(persona) },
         { role: "user", content: buildBreakItPrompt(context, testPlan, pageMap) },
       ]);
 
@@ -237,12 +250,12 @@ export async function runTestSession(
       await updateStep(steps, 6, "passed", callbacks);
 
       // ── Step 8: Edge cases & boundary testing ──────────
-      callbacks.onPhaseChange("breaking", "Poking at edge cases...");
-      await updateStep(steps, 7, "running", callbacks);
-      out(`\n> ${settings.provider}: finding edge cases and boundary conditions...\n\n`);
+      callbacks.onPhaseChange("breaking", personaProfile.phaseMessages.edgeCases);
+      await updateStep(steps, 7, "running", callbacks, undefined, `Using ${browserSession.label}`);
+      out(`\n> ${settings.provider}: ${personaProfile.outputMessages.edgeCases}\n\n`);
 
       const edgeResult = await streamAnalyze(context, [
-        { role: "system", content: SYSTEM_PROMPT },
+        { role: "system", content: buildSystemPrompt(persona) },
         { role: "user", content: buildEdgeCasePrompt(context, testPlan, pageMap) },
       ]);
 
@@ -262,17 +275,17 @@ export async function runTestSession(
     }
 
     // ── Step 9: Accessibility & keyboard-only ────────────
-    callbacks.onPhaseChange("testing", "Testing accessibility like a real user...");
-    await updateStep(steps, 8, "running", callbacks);
+    callbacks.onPhaseChange("testing", personaProfile.phaseMessages.accessibility);
+    await updateStep(steps, 8, "running", callbacks, undefined, `Using ${browserSession.label}`);
 
     if (context.url) {
       out(`\n> Running real keyboard-only navigation test...\n`);
       const a11yFindings = await testAccessibility(context, settings, out);
       findings.push(...a11yFindings);
 
-      out(`\n> ${settings.provider}: deep accessibility analysis...\n\n`);
+      out(`\n> ${settings.provider}: ${personaProfile.outputMessages.accessibility}\n\n`);
       const a11yAiResult = await streamAnalyze(context, [
-        { role: "system", content: SYSTEM_PROMPT },
+        { role: "system", content: buildSystemPrompt(persona) },
         { role: "user", content: buildAccessibilityPrompt(context, pageMap) },
       ]);
       findings.push(...parseFindings(a11yAiResult));
@@ -312,8 +325,7 @@ export async function runTestSession(
   }
 }
 
-// ─── System prompt — the tester persona ────────────────────
-const SYSTEM_PROMPT = `You are GetWired — a senior QA engineer with 15 years of experience who tests web apps the way a skeptical, thorough human would. You don't just verify that things work; you actively try to make them fail.
+const BASE_SYSTEM_PROMPT = `You are GetWired — a senior QA engineer with 15 years of experience who tests web apps the way a skeptical, thorough human would. You don't just verify that things work; you actively try to make them fail.
 
 Your testing personality:
 - You click things a normal user wouldn't think to click
@@ -336,6 +348,131 @@ When you return findings, use this JSON format:
 When you return interaction scenarios, use this JSON format:
 [{ "name": "Scenario name", "category": "happy-path|edge-case|abuse|boundary|error-recovery", "actions": [{ "type": "navigate|click|fill|select|scroll|wait|screenshot|keyboard", "selector": "CSS selector", "value": "text to type or URL", "url": "for navigate actions", "key": "for keyboard actions like Tab, Enter, Escape", "description": "What a human tester would say they're doing" }] }]`;
 
+const PERSONA_PROMPT_APPENDIX: Record<TestPersona, string> = {
+  standard: `Mode: Standard testing.
+Keep a balanced QA mindset. Cover obvious flows first, then escalate into meaningful abuse and edge cases.`,
+  hacky: `Mode: Hacky testing.
+Behave like a curious, persistent attacker with no privileged access. Stay inside what a browser user can do by navigating, clicking, typing, reloading, editing URLs, query params, hashes, form inputs, and normal browser actions. Focus on exposed admin paths, insecure object references, role leaks, missing guards, destructive actions, confusing state transitions, and places where the app reveals too much or lets a normal visitor do too much.
+Do not assume shell access, stolen credentials, direct database access, or hidden APIs that a browser user cannot reach.`,
+  "old-man": `Mode: Old Man Test.
+Simulate an older, non-technical user who is trying sincerely to use the app but is hesitant, literal, and easily confused. Move slower, prefer the obvious button, misread labels, distrust jargon, and notice anything unclear or intimidating. Report what felt easy, what was confusing, what wording was hard to understand, and what would make this person give up or call someone for help.`,
+};
+
+interface PersonaProfile {
+  stepNames: string[];
+  phaseMessages: {
+    planning: string;
+    happyPath: string;
+    breaking: string;
+    edgeCases: string;
+    accessibility: string;
+  };
+  outputMessages: {
+    planning: string;
+    happyPath: string;
+    breaking: string;
+    edgeCases: string;
+    accessibility: string;
+  };
+}
+
+const PERSONA_PROFILES: Record<TestPersona, PersonaProfile> = {
+  standard: {
+    stepNames: [
+      "Scan project structure",
+      "Load project context & notes",
+      "Reconnaissance & test planning",
+      "First impression & screenshots",
+      "Compare with baselines",
+      "Walk the happy paths",
+      "Try to break things",
+      "Poke at edge cases & boundaries",
+      "Accessibility & keyboard-only",
+      "Generate report",
+    ],
+    phaseMessages: {
+      planning: "Exploring the site like a human tester...",
+      happyPath: "Walking the happy paths...",
+      breaking: "Trying to break things...",
+      edgeCases: "Poking at edge cases...",
+      accessibility: "Testing accessibility like a real user...",
+    },
+    outputMessages: {
+      planning: "exploring the site and planning attacks...",
+      happyPath: "planning happy-path walkthroughs...",
+      breaking: "thinking of ways to break this...",
+      edgeCases: "finding edge cases and boundary conditions...",
+      accessibility: "deep accessibility analysis...",
+    },
+  },
+  hacky: {
+    stepNames: [
+      "Scan project structure",
+      "Load project context & notes",
+      "Reconnaissance & attack planning",
+      "First impression & screenshots",
+      "Compare with baselines",
+      "Probe the obvious flows",
+      "Try to bypass and tamper",
+      "Poke routes, params & boundaries",
+      "Accessibility & keyboard-only",
+      "Generate report",
+    ],
+    phaseMessages: {
+      planning: "Mapping the surface like a hostile browser user...",
+      happyPath: "Probing the obvious flows...",
+      breaking: "Trying to bypass and tamper...",
+      edgeCases: "Poking routes, params, and edge cases...",
+      accessibility: "Checking if rough UX hides exploitable cracks...",
+    },
+    outputMessages: {
+      planning: "mapping routes, forms, and weak spots...",
+      happyPath: "probing the obvious flows for cracks...",
+      breaking: "trying bypasses, tampering, and unsafe navigation...",
+      edgeCases: "pushing params, routes, and edge conditions...",
+      accessibility: "checking whether rough UX hides risky behavior...",
+    },
+  },
+  "old-man": {
+    stepNames: [
+      "Scan project structure",
+      "Load project context & notes",
+      "First-time user orientation",
+      "First impression & screenshots",
+      "Compare with baselines",
+      "Try the obvious tasks slowly",
+      "Get confused and recover",
+      "Misread labels & navigation",
+      "Accessibility & readability",
+      "Generate report",
+    ],
+    phaseMessages: {
+      planning: "Approaching the site like a hesitant first-time user...",
+      happyPath: "Trying the obvious tasks slowly...",
+      breaking: "Getting confused and trying to recover...",
+      edgeCases: "Misreading labels, navigation, and wording...",
+      accessibility: "Checking readability and comfort for a low-tech user...",
+    },
+    outputMessages: {
+      planning: "looking around carefully and trying to understand the site...",
+      happyPath: "trying the obvious tasks one slow step at a time...",
+      breaking: "getting confused, hesitating, and seeing what goes wrong...",
+      edgeCases: "misreading labels and testing what feels unclear...",
+      accessibility: "checking readability, clarity, and comfort...",
+    },
+  },
+};
+
+function buildSystemPrompt(persona: TestPersona): string {
+  return `${BASE_SYSTEM_PROMPT}
+
+${PERSONA_PROMPT_APPENDIX[persona]}`;
+}
+
+function getPersonaProfile(persona: TestPersona): PersonaProfile {
+  return PERSONA_PROFILES[persona];
+}
+
 // ─── Prompt builders ───────────────────────────────────────
 
 function buildReconPrompt(context: TestContext, projectInfo: string, notes: string, pageMap: string): string {
@@ -343,6 +480,7 @@ function buildReconPrompt(context: TestContext, projectInfo: string, notes: stri
 
 URL: ${context.url ?? "not provided"}
 Device: ${context.deviceProfile}
+Persona: ${getPersonaLabel(context.persona)}
 Scope: ${context.scope ?? "full — test everything you can find"}
 ${context.commitId ? `Changes since commit: ${context.commitId}` : ""}
 ${context.prId ? `Testing PR #${context.prId}` : ""}
@@ -353,6 +491,9 @@ ${projectInfo}
 ${notes ? `Previous tester notes:\n${notes}` : ""}
 
 ${pageMap ? `I already crawled the site and found these pages, links, and forms:\n${pageMap}` : ""}
+
+Persona guidance:
+${getPersonaPromptGuidance(context.persona, "recon")}
 
 Create a test plan that covers:
 1. **Happy paths** — the main flows a real user would follow. Navigate, click, fill forms, complete actions.
@@ -369,11 +510,15 @@ function buildHappyPathPrompt(context: TestContext, testPlan: string, pageMap: s
 
 URL: ${context.url}
 Device: ${context.deviceProfile}
+Persona: ${getPersonaLabel(context.persona)}
 
 ${pageMap ? `Site map:\n${pageMap}\n` : ""}
 
 Your earlier test plan:
 ${testPlan.slice(0, 3000)}
+
+Persona guidance:
+${getPersonaPromptGuidance(context.persona, "happy")}
 
 For each flow, generate step-by-step Playwright-compatible actions. Think like a user:
 - Navigate to the page
@@ -387,12 +532,77 @@ Return as a JSON array of interaction scenarios. Each scenario should have 3-10 
 }
 
 function buildBreakItPrompt(context: TestContext, testPlan: string, pageMap: string): string {
+  const persona = context.persona ?? "standard";
+  if (persona === "old-man") {
+    return `Now simulate what happens when an older, low-tech user gets confused, hesitant, or uncertain.
+
+URL: ${context.url}
+Device: ${context.deviceProfile}
+Persona: ${getPersonaLabel(context.persona)}
+
+${pageMap ? `Site map (forms, inputs, buttons found):\n${pageMap}\n` : ""}
+
+Generate confusion and recovery scenarios like these:
+
+- Click the most obvious button even if it is not the right next step
+- Read labels too literally and choose the wrong path
+- Start filling a form, stop halfway, go back, and try to recover
+- Miss secondary actions because they are too subtle
+- Fail to notice success state and try the same action again
+- Get nervous after warnings or unfamiliar wording
+- Misunderstand icons, abbreviations, and technical terms
+- Assume the app is broken when feedback is delayed or unclear
+- Use browser back/forward because there is no obvious in-app path
+- Give up when the next step is not visually obvious
+
+Return as a JSON array of interaction scenarios. Focus on confusion, clarity, trust, and recovery rather than hostile abuse.`;
+  }
+
+  if (persona === "hacky") {
+    return `Now it's time to probe this site like a hostile but unprivileged browser user. Be creative, persistent, and suspicious.
+
+URL: ${context.url}
+Device: ${context.deviceProfile}
+Persona: ${getPersonaLabel(context.persona)}
+
+${pageMap ? `Site map (forms, inputs, buttons found):\n${pageMap}\n` : ""}
+
+Generate adversarial interaction scenarios. Here's what I want you to try:
+
+**Route and permission probing:**
+- Navigate to admin-, staff-, settings-, billing-, export-, and debug-looking URLs
+- Modify IDs in the URL to access neighboring records
+- Remove required URL params and swap in nonsense values
+- Add \`?debug=true\`, \`?role=admin\`, \`?view=all\`, \`?tab=internal\`
+- Try deep links that bypass the normal navigation order
+
+**Input tampering:**
+- Submit every form empty, malformed, oversized, and duplicated
+- Use suspicious payloads, weird unicode, absurd lengths, broken dates, and wrong types
+- Repeat destructive-looking actions twice to see if protections fail
+
+**State abuse:**
+- Refresh mid-action, go back, go forward, resubmit, or reopen pages from browser history
+- Trigger the same action from multiple obvious UI paths
+- Look for stale state, leaked data, or actions that succeed after the UI says they failed
+
+**Browser-only attack surface:**
+- Probe hidden links, obvious API-like routes, exported files, and anything that looks internal
+- Check whether the app reveals too much through error messages, disabled controls, or missing empty-state guards
+
+Return as a JSON array of interaction scenarios. 5-15 scenarios, each with 3-8 actions. Focus on what a normal browser user should not be able to reach or infer.`;
+  }
+
   return `Now it's time to try to break this site. You're a QA tester whose bonus depends on finding bugs. Be creative, be mean, be thorough.
 
 URL: ${context.url}
 Device: ${context.deviceProfile}
+Persona: ${getPersonaLabel(context.persona)}
 
 ${pageMap ? `Site map (forms, inputs, buttons found):\n${pageMap}\n` : ""}
+
+Persona guidance:
+${getPersonaPromptGuidance(context.persona, "breaking")}
 
 Generate adversarial interaction scenarios. Here's what I want you to try:
 
@@ -430,12 +640,49 @@ Return as a JSON array of interaction scenarios. 5-15 scenarios, each with 3-8 a
 }
 
 function buildEdgeCasePrompt(context: TestContext, testPlan: string, pageMap: string): string {
+  if ((context.persona ?? "standard") === "old-man") {
+    return `Now think about clarity, confidence, and comprehension edge cases for an older low-tech user.
+
+URL: ${context.url}
+Device: ${context.deviceProfile}
+Persona: ${getPersonaLabel(context.persona ?? "old-man")}
+
+${pageMap ? `Site map:\n${pageMap}\n` : ""}
+
+Generate scenarios for:
+
+**Comprehension edge cases:**
+- Buttons whose labels are vague, similar, or too technical
+- Icons with no text labels
+- Error messages that do not explain what to do next
+- Success states that are too subtle to notice
+- Long forms where it is unclear what is required
+
+**Navigation edge cases:**
+- No obvious next step from the current page
+- Multiple competing calls to action
+- Browser back/forward creating confusion
+- Modals, drawers, or menus that close unexpectedly
+
+**Confidence edge cases:**
+- Slow responses that make the user think nothing happened
+- Destructive-looking actions with weak confirmation
+- Tiny text, low contrast, or cramped layouts that make reading difficult
+- Jargon, abbreviations, and internal vocabulary that a normal older person would not understand
+
+Return as a JSON array of interaction scenarios. Focus on confusion, readability, trust, and recovery.`;
+  }
+
   return `Now think about edge cases and boundary conditions. The subtle stuff that slips through code review.
 
 URL: ${context.url}
 Device: ${context.deviceProfile}
+Persona: ${getPersonaLabel(context.persona)}
 
 ${pageMap ? `Site map:\n${pageMap}\n` : ""}
+
+Persona guidance:
+${getPersonaPromptGuidance(context.persona, "edge")}
 
 Generate scenarios for:
 
@@ -472,8 +719,12 @@ function buildAccessibilityPrompt(context: TestContext, pageMap: string): string
 
 URL: ${context.url}
 Device: ${context.deviceProfile}
+Persona: ${getPersonaLabel(context.persona)}
 
 ${pageMap ? `Site map:\n${pageMap}\n` : ""}
+
+Persona guidance:
+${getPersonaPromptGuidance(context.persona, "accessibility")}
 
 Check these things that real users with disabilities encounter:
 
@@ -488,11 +739,57 @@ Don't give generic advice. Look at what's actually on this site and report speci
 Return findings as a JSON array with severity, category "accessibility", and specific steps to reproduce.`;
 }
 
+function getPersonaLabel(persona: TestPersona | undefined): string {
+  switch (persona ?? "standard") {
+    case "hacky": return "Hacky Testing";
+    case "old-man": return "Old Man Test";
+    default: return "Standard Testing";
+  }
+}
+
+function getPersonaPromptGuidance(
+  persona: TestPersona | undefined,
+  stage: "recon" | "happy" | "breaking" | "edge" | "accessibility",
+): string {
+  switch (persona ?? "standard") {
+    case "hacky":
+      if (stage === "happy") {
+        return `Treat "happy path" as "obvious path a real attacker or curious user would try first." Prefer flows that reveal permissions, account boundaries, hidden state, destructive actions, and route protection gaps.`;
+      }
+      if (stage === "breaking") {
+        return `Prioritize auth bypass by navigation, route tampering, query/hash manipulation, ID enumeration, role leakage, insecure direct object references, repeated destructive actions, and anything that should be guarded but is reachable in a browser.`;
+      }
+      if (stage === "edge") {
+        return `Focus on route boundaries, malformed params, odd URL states, empty states that expose data, and flows that break when a normal user pushes the browser in slightly hostile ways.`;
+      }
+      if (stage === "accessibility") {
+        return `Keep the accessibility check practical: highlight confusing or inaccessible UI that also increases the risk of mistaken actions, hidden warnings, or unsafe destructive behavior.`;
+      }
+      return `Think like a hostile but unprivileged browser user. The goal is to find holes, exposed surfaces, and broken assumptions without leaving normal web navigation and form interaction.`;
+    case "old-man":
+      if (stage === "happy") {
+        return `Pick the most obvious flows and move through them slowly. Favor the biggest buttons, the plainest wording, and common expectations. Note every place where the user has to stop and think.`;
+      }
+      if (stage === "breaking") {
+        return `Generate confusion scenarios rather than technical abuse: wrong button clicks, misunderstood labels, mistaken back navigation, fear after an unclear warning, uncertainty about whether an action worked, and giving up when the app feels intimidating.`;
+      }
+      if (stage === "edge") {
+        return `Focus on wording, navigation, icon-only controls, hidden assumptions, unfamiliar jargon, unclear empty states, and moments where an older low-tech user would think "I don't know what this means."`;
+      }
+      if (stage === "accessibility") {
+        return `Emphasize readability, contrast, text size, cognitive load, predictable navigation, obvious confirmation states, and whether this person can trust what they just did.`;
+      }
+      return `Simulate a sincere older person who is not comfortable with technology. They want to succeed, but they are literal, patient, confused by jargon, and easily thrown off by ambiguous UI.`;
+    default:
+      return `Use the normal skeptical QA mindset: balanced coverage of obvious flows, realistic mistakes, abuse cases, and edge conditions.`;
+  }
+}
+
 // ─── Site crawler — discover what's on the page ────────────
-async function crawlSiteMap(url: string, out: (text: string) => void): Promise<string> {
+async function crawlSiteMap(url: string, out: (text: string) => void, showBrowser: boolean): Promise<string> {
   try {
     const { chromium } = await import("playwright");
-    const browser = await chromium.launch({ headless: true });
+    const browser = await chromium.launch(getBrowserSession(showBrowser).launchOptions);
     const page = await browser.newPage();
     await page.goto(url, { waitUntil: "networkidle", timeout: 30_000 });
 
@@ -600,7 +897,7 @@ async function executeScenarios(
 
   try {
     const { chromium } = await import("playwright");
-    const browser = await chromium.launch({ headless: true });
+    const browser = await chromium.launch(getBrowserSession(settings.testing.showBrowser).launchOptions);
 
     for (const scenario of scenarios) {
       out(`\n  ── ${scenario.category}: ${scenario.name} ──\n`);
@@ -694,7 +991,7 @@ async function executeScenarios(
               );
               await mkdir(join(context.reportDir, "screenshots"), { recursive: true });
               await page.screenshot({ path: screenshotPath, fullPage: false });
-              out(`      [screenshot saved]\n`);
+              out(`      [screenshot saved: ${toProjectRelativePath(context.projectPath, screenshotPath)}]\n`);
               break;
             }
             case "assert": {
@@ -798,7 +1095,7 @@ async function testAccessibility(
 
   try {
     const { chromium } = await import("playwright");
-    const browser = await chromium.launch({ headless: true });
+    const browser = await chromium.launch(getBrowserSession(settings.testing.showBrowser).launchOptions);
     const page = await browser.newPage({ viewport: settings.testing.viewports.desktop });
     await page.goto(context.url, { waitUntil: "networkidle", timeout: 30_000 });
 
@@ -1120,10 +1417,17 @@ async function updateStep(
   status: TestStep["status"],
   callbacks: OrchestratorCallbacks,
   duration?: number,
+  details?: string,
 ) {
   steps[index].status = status;
-  if (duration) steps[index].duration = duration;
+  if (duration !== undefined) steps[index].duration = duration;
+  if (details !== undefined) steps[index].details = details;
   callbacks.onStepUpdate([...steps]);
+}
+
+function toProjectRelativePath(projectPath: string, targetPath: string): string {
+  const relativePath = relative(projectPath, targetPath);
+  return relativePath && !relativePath.startsWith("..") ? relativePath : targetPath;
 }
 
 function generateId(): string {

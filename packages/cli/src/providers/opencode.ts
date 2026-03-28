@@ -42,6 +42,13 @@ export class OpenCodeProvider extends TestingProvider {
       stdio: ["pipe", "pipe", "pipe"],
     });
 
+    // Capture the exit promise BEFORE consuming the stream to avoid a race
+    // where the 'close' event fires before we register the listener.
+    const exitPromise = new Promise<number | null>((resolve) => {
+      proc.on("close", resolve);
+      proc.on("error", () => resolve(null));
+    });
+
     const chunks = createChunkQueue(proc.stdout!, proc.stderr!);
 
     for await (const text of chunks) {
@@ -50,10 +57,7 @@ export class OpenCodeProvider extends TestingProvider {
       }
     }
 
-    const exitCode = await new Promise<number | null>((resolve) => {
-      proc.on("close", resolve);
-      proc.on("error", () => resolve(null));
-    });
+    const exitCode = await exitPromise;
 
     if (exitCode !== null && exitCode !== 0) {
       yield { type: "text", content: `\n[opencode exited with code ${exitCode}]\n` };

@@ -6,7 +6,7 @@ import { TestProgress } from "./TestProgress.js";
 import { ProviderStream } from "./ProviderStream.js";
 import { runTestSession } from "../orchestrator/index.js";
 import type { TestStep, TestPhase } from "../orchestrator/index.js";
-import type { TestFinding, TestReport } from "../providers/types.js";
+import type { TestFinding, TestPersona, TestReport } from "../providers/types.js";
 
 interface RunCommandProps {
   options: {
@@ -14,6 +14,7 @@ interface RunCommandProps {
     commit?: string;
     pr?: string;
     scope?: string;
+    persona?: TestPersona;
     device?: string;
     provider?: string;
     baselineOnly?: boolean;
@@ -41,6 +42,7 @@ export function RunCommand({ options }: RunCommandProps) {
         commitId: options.commit,
         prId: options.pr,
         scope: options.scope,
+        persona: options.persona,
       },
       {
         onPhaseChange: (p, msg) => {
@@ -78,6 +80,8 @@ export function RunCommand({ options }: RunCommandProps) {
       ? `Regression · PR #${options.pr}`
       : options.baselineOnly
         ? "Capturing Baselines"
+        : options.persona && options.persona !== "standard"
+          ? `${getPersonaLabel(options.persona)}${options.url ? ` · ${options.url}` : ""}`
         : options.url
           ? `Testing · ${options.url}`
           : "Full Test Suite";
@@ -88,9 +92,9 @@ export function RunCommand({ options }: RunCommandProps) {
       <StatusBar status={statusMap[phase] ?? "testing"} message={phaseMessage} />
 
       {/* Split Pane: Left = Progress | Right = Agent Feed */}
-      <Box flexDirection="row" marginY={1} minHeight={20}>
+      <Box flexDirection="row" marginY={1} minHeight={20} width="100%">
         {/* Left Panel */}
-        <Box flexDirection="column" width="50%">
+        <Box flexDirection="column" width="50%" flexGrow={0} flexShrink={0}>
           {steps.length > 0 && (
             <TestProgress steps={steps} currentStep={Math.max(0, steps.findIndex((s) => s.status === "running"))} />
           )}
@@ -115,7 +119,10 @@ export function RunCommand({ options }: RunCommandProps) {
                 {report.summary.passed} passed · {report.summary.failed} failed · {report.summary.warnings} warnings
               </Text>
               <Text color="green" dimColor>
-                {report.summary.duration}ms · .getwired/reports/{report.id}.json
+                {report.summary.duration}ms · .getwired/reports/{report.id}/{report.id}.json
+              </Text>
+              <Text color="green" dimColor>
+                Screenshots: .getwired/reports/{report.id}/screenshots/
               </Text>
             </Box>
           )}
@@ -128,8 +135,11 @@ export function RunCommand({ options }: RunCommandProps) {
         </Box>
 
         {/* Right Panel: Live Provider Output */}
-        <Box width="50%">
-          <ProviderStream output={providerOutput} />
+        <Box width="50%" flexGrow={0} flexShrink={0}>
+          <ProviderStream
+            output={providerOutput}
+            isStreaming={!report && !error && phase !== "done" && phase !== "error"}
+          />
         </Box>
       </Box>
 
@@ -138,4 +148,12 @@ export function RunCommand({ options }: RunCommandProps) {
       </Box>
     </Box>
   );
+}
+
+function getPersonaLabel(persona: TestPersona): string {
+  switch (persona) {
+    case "hacky": return "Hacky Testing";
+    case "old-man": return "Old Man Test";
+    default: return "Testing";
+  }
 }

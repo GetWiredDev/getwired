@@ -50,21 +50,30 @@ export function TestProgress({ steps, currentStep }: TestProgressProps) {
       </Box>
 
       {steps.map((step, i) => (
-        <Box key={i} gap={1} paddingLeft={1}>
-          <Text color={STATUS_COLOR[step.status]}>
-            {STATUS_ICON[step.status]}
-          </Text>
-          <Text
-            color={STATUS_COLOR[step.status]}
-            bold={step.status === "running"}
-          >
-            {step.name}
-            {step.status === "running" ? dots : ""}
-          </Text>
-          {step.duration !== undefined && (
-            <Text color="green" dimColor>
-              ({step.duration}ms)
+        <Box key={i} flexDirection="column" paddingLeft={1}>
+          <Box gap={1}>
+            <Text color={STATUS_COLOR[step.status]}>
+              {STATUS_ICON[step.status]}
             </Text>
+            <Text
+              color={STATUS_COLOR[step.status]}
+              bold={step.status === "running"}
+            >
+              {step.name}
+              {step.status === "running" ? dots : ""}
+            </Text>
+            {step.duration !== undefined && (
+              <Text color="green" dimColor>
+                ({step.duration}ms)
+              </Text>
+            )}
+          </Box>
+          {step.details && (
+            <Box paddingLeft={2}>
+              <Text color="green" dimColor>
+                {step.details}
+              </Text>
+            </Box>
           )}
         </Box>
       ))}

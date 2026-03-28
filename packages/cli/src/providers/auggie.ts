@@ -41,6 +41,13 @@ export class AuggieProvider extends TestingProvider {
       stdio: ["pipe", "pipe", "pipe"],
     });
 
+    // Capture the exit promise BEFORE consuming the stream to avoid a race
+    // where the 'close' event fires before we register the listener.
+    const exitPromise = new Promise<number | null>((resolve) => {
+      proc.on("close", resolve);
+      proc.on("error", () => resolve(null));
+    });
+
     // Use an event-driven queue instead of `for await` so chunks are
     // yielded as soon as they arrive rather than being batched.
     const chunks = createChunkQueue(proc.stdout!, proc.stderr!);
@@ -52,10 +59,7 @@ export class AuggieProvider extends TestingProvider {
     }
 
     // Wait for the process to exit and surface errors
-    const exitCode = await new Promise<number | null>((resolve) => {
-      proc.on("close", resolve);
-      proc.on("error", () => resolve(null));
-    });
+    const exitCode = await exitPromise;
 
     if (exitCode !== null && exitCode !== 0) {
       yield { type: "text", content: `\n[auggie exited with code ${exitCode}]\n` };

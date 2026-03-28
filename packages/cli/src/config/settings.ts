@@ -3,6 +3,9 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { DeviceProfile, ProviderAuth } from "../providers/types.js";
 
+const DEFAULT_SHOW_BROWSER = process.env.CI !== "true"
+  && (process.platform !== "linux" || Boolean(process.env.DISPLAY || process.env.WAYLAND_DISPLAY));
+
 export interface GetwiredSettings {
   provider: string;
   auth: Record<string, ProviderAuth>;
@@ -16,6 +19,7 @@ export interface GetwiredSettings {
     screenshotDelay: number;
     diffThreshold: number;
     maxConcurrency: number;
+    showBrowser: boolean;
   };
   project: {
     name: string;
@@ -44,6 +48,7 @@ const DEFAULT_SETTINGS: GetwiredSettings = {
     screenshotDelay: 1000,
     diffThreshold: 0.01,
     maxConcurrency: 3,
+    showBrowser: DEFAULT_SHOW_BROWSER,
   },
   project: {
     name: "",
@@ -104,7 +109,38 @@ export async function loadConfig(projectPath: string): Promise<GetwiredSettings>
   }
   const raw = await readFile(configPath, "utf-8");
   const saved = JSON.parse(raw);
-  return { ...DEFAULT_SETTINGS, ...saved };
+  return {
+    ...DEFAULT_SETTINGS,
+    ...saved,
+    auth: {
+      ...DEFAULT_SETTINGS.auth,
+      ...(saved.auth ?? {}),
+    },
+    testing: {
+      ...DEFAULT_SETTINGS.testing,
+      ...(saved.testing ?? {}),
+      viewports: {
+        ...DEFAULT_SETTINGS.testing.viewports,
+        ...(saved.testing?.viewports ?? {}),
+        desktop: {
+          ...DEFAULT_SETTINGS.testing.viewports.desktop,
+          ...(saved.testing?.viewports?.desktop ?? {}),
+        },
+        mobile: {
+          ...DEFAULT_SETTINGS.testing.viewports.mobile,
+          ...(saved.testing?.viewports?.mobile ?? {}),
+        },
+      },
+    },
+    project: {
+      ...DEFAULT_SETTINGS.project,
+      ...(saved.project ?? {}),
+    },
+    reporting: {
+      ...DEFAULT_SETTINGS.reporting,
+      ...(saved.reporting ?? {}),
+    },
+  };
 }
 
 export async function saveConfig(projectPath: string, settings: GetwiredSettings): Promise<void> {

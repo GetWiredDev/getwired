@@ -27,6 +27,7 @@ program
   .option("-c, --commit <id>", "Test against a specific commit for regression")
   .option("-p, --pr <id>", "Test against a specific pull request")
   .option("--scope <scope>", "Scope of testing (e.g. auth, checkout, navigation)")
+  .option("--persona <mode>", "Test persona: standard, hacky, or old-man", "standard")
   .option("-d, --device <profile>", "Device profile: desktop, mobile, or both", "both")
   .option("--provider <provider>", "Override AI provider for this run")
   .action((options) => {

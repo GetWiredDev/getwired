@@ -26,6 +26,7 @@ export interface StreamChunk {
 }
 
 export type DeviceProfile = "desktop" | "mobile" | "both";
+export type TestPersona = "standard" | "hacky" | "old-man";
 
 export interface TestContext {
   projectPath: string;
@@ -33,6 +34,7 @@ export interface TestContext {
   commitId?: string;
   prId?: string;
   scope?: string;
+  persona?: TestPersona;
   deviceProfile: DeviceProfile;
   baselineDir: string;
   reportDir: string;
