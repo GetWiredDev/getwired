@@ -3,6 +3,7 @@ import { ClaudeCodeProvider } from "./claude-code.js";
 import { AuggieProvider } from "./auggie.js";
 import { CodexProvider } from "./codex.js";
 import { OpenCodeProvider } from "./opencode.js";
+import { ensureProviderCli } from "./ensure-cli.js";
 
 const providers = new Map<string, () => TestingProvider>();
 
@@ -22,6 +23,13 @@ export function getProvider(name: string): TestingProvider {
       `Unknown provider: ${name}. Available: ${getAvailableProviders().map((p) => p.name).join(", ")}`,
     );
   }
+
+  if (!ensureProviderCli(name)) {
+    throw new Error(
+      `Provider "${name}" requires its CLI tool to be installed. See above for instructions.`,
+    );
+  }
+
   return factory();
 }
 

@@ -4,6 +4,7 @@ import React from "react";
 import { App } from "./components/App.js";
 import { RunCommand } from "./components/RunCommand.js";
 import { ReportView } from "./components/ReportView.js";
+import { checkForUpdates } from "./update.js";
 
 program
   .name("getwired")
@@ -48,4 +49,5 @@ program
     render(<App mode="dashboard" />);
   });
 
+checkForUpdates();
 program.parse();
