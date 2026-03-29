@@ -6,9 +6,33 @@ import type { DeviceProfile, ProviderAuth } from "../providers/types.js";
 const DEFAULT_SHOW_BROWSER = process.env.CI !== "true"
   && (process.platform !== "linux" || Boolean(process.env.DISPLAY || process.env.WAYLAND_DISPLAY));
 
+export interface AuthCookie {
+  name: string;
+  value: string;
+  domain?: string;
+  path?: string;
+  secure?: boolean;
+  httpOnly?: boolean;
+}
+
+export interface AuthConfig {
+  /** Cookies to inject into the browser before testing. Values starting with $ are resolved from env vars. */
+  cookies: AuthCookie[];
+  /** localStorage key/value pairs to inject. Values starting with $ are resolved from env vars. */
+  localStorage: Record<string, string>;
+  /** If set, the orchestrator navigates here first and runs the login flow before testing. */
+  loginUrl?: string;
+  /** Credentials for login form fill. Values starting with $ are resolved from env vars. */
+  credentials: {
+    username?: string;
+    password?: string;
+  };
+}
+
 export interface GetwiredSettings {
   provider: string;
   auth: Record<string, ProviderAuth>;
+  authentication: AuthConfig;
   testing: {
     deviceProfile: DeviceProfile;
     viewports: {
@@ -35,9 +59,16 @@ export interface GetwiredSettings {
   };
 }
 
+const DEFAULT_AUTH: AuthConfig = {
+  cookies: [],
+  localStorage: {},
+  credentials: {},
+};
+
 const DEFAULT_SETTINGS: GetwiredSettings = {
   provider: "claude-code",
   auth: {},
+  authentication: DEFAULT_AUTH,
   testing: {
     deviceProfile: "both",
     viewports: {
@@ -120,6 +151,14 @@ export async function loadConfig(projectPath: string): Promise<GetwiredSettings>
       ...DEFAULT_SETTINGS.auth,
       ...(saved.auth ?? {}),
     },
+    authentication: {
+      ...DEFAULT_AUTH,
+      ...(saved.authentication ?? {}),
+      credentials: {
+        ...DEFAULT_AUTH.credentials,
+        ...(saved.authentication?.credentials ?? {}),
+      },
+    },
     testing: {
       ...DEFAULT_SETTINGS.testing,
       ...(saved.testing ?? {}),
@@ -154,4 +193,40 @@ export async function saveConfig(projectPath: string, settings: GetwiredSettings
 
 export function configExists(projectPath: string): boolean {
   return existsSync(getConfigPath(projectPath));
+}
+
+/**
+ * Resolve a value that may be an env var reference (e.g. "$MY_SECRET").
+ * Returns the env var value if it starts with $, otherwise returns as-is.
+ * Throws if the env var is referenced but not set.
+ */
+export function resolveEnvValue(value: string): string {
+  if (!value.startsWith("$")) return value;
+  const envName = value.slice(1);
+  const envValue = process.env[envName];
+  if (envValue === undefined) {
+    throw new Error(
+      `Environment variable ${envName} is referenced in .getwired/config.json but is not set. ` +
+      `Set it before running: export ${envName}=<value>`,
+    );
+  }
+  return envValue;
+}
+
+/**
+ * Return the authentication config with all env var references resolved.
+ * Call this at runtime — never persist resolved values.
+ */
+export function resolveAuth(auth: AuthConfig): AuthConfig {
+  return {
+    cookies: auth.cookies.map((c) => ({ ...c, value: resolveEnvValue(c.value) })),
+    localStorage: Object.fromEntries(
+      Object.entries(auth.localStorage).map(([k, v]) => [k, resolveEnvValue(v)]),
+    ),
+    loginUrl: auth.loginUrl,
+    credentials: {
+      username: auth.credentials.username ? resolveEnvValue(auth.credentials.username) : undefined,
+      password: auth.credentials.password ? resolveEnvValue(auth.credentials.password) : undefined,
+    },
+  };
 }

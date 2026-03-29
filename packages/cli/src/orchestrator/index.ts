@@ -6,7 +6,7 @@ import { createConnection } from "node:net";
 import { getBrowserSession } from "../browser/session.js";
 import { ensureAgentBrowser } from "../providers/ensure-cli.js";
 import { getProvider } from "../providers/registry.js";
-import { loadConfig, getBaselineDir, getReportDir, getNotesDir, getMemoryPath } from "../config/settings.js";
+import { loadConfig, resolveAuth, getBaselineDir, getReportDir, getNotesDir, getMemoryPath } from "../config/settings.js";
 import { captureScreenshots, captureMultiplePages } from "../screenshot/capture.js";
 import { compareScreenshots, imageToBase64 } from "../screenshot/compare.js";
 import type {
@@ -196,6 +196,78 @@ export async function runTestSession(
 
     // Shared browser module — reused across crawl, scenarios, and accessibility
     const ab = await import("../browser/agent-browser.js");
+
+    // ── Authenticate browser session if configured ──
+    const hasAuth =
+      settings.authentication.cookies.length > 0 ||
+      Object.keys(settings.authentication.localStorage).length > 0 ||
+      settings.authentication.loginUrl;
+
+    if (hasAuth) {
+      out(`> Authenticating browser session...\n`);
+      const resolvedAuth = resolveAuth(settings.authentication);
+      const vp = settings.testing.viewports.desktop;
+
+      // Open the target (or login URL) so cookies/storage land on the right domain
+      const authTarget = resolvedAuth.loginUrl ?? context.url;
+      await ab.open(authTarget, { viewport: `${vp.width}x${vp.height}` });
+      await ab.waitForLoad("domcontentloaded");
+
+      // Inject cookies and localStorage
+      if (resolvedAuth.cookies.length > 0) {
+        await ab.injectCookies(resolvedAuth.cookies);
+        out(`  Injected ${resolvedAuth.cookies.length} cookie(s)\n`);
+      }
+      if (Object.keys(resolvedAuth.localStorage).length > 0) {
+        await ab.injectLocalStorage(resolvedAuth.localStorage);
+        out(`  Injected ${Object.keys(resolvedAuth.localStorage).length} localStorage key(s)\n`);
+      }
+
+      // If login credentials are provided, fill the form
+      if (resolvedAuth.loginUrl && resolvedAuth.credentials.username) {
+        out(`  Filling login form...\n`);
+        // Fill common selectors — the AI will handle non-standard forms in scenarios
+        const usernameSelectors = ['input[name="email"]', 'input[name="username"]', 'input[type="email"]', '#email', '#username'];
+        const passwordSelectors = ['input[name="password"]', 'input[type="password"]', '#password'];
+
+        for (const sel of usernameSelectors) {
+          try {
+            await ab.fill(sel, resolvedAuth.credentials.username!);
+            break;
+          } catch { /* try next selector */ }
+        }
+        if (resolvedAuth.credentials.password) {
+          for (const sel of passwordSelectors) {
+            try {
+              await ab.fill(sel, resolvedAuth.credentials.password);
+              break;
+            } catch { /* try next selector */ }
+          }
+        }
+
+        // Submit the form
+        const submitSelectors = ['button[type="submit"]', 'input[type="submit"]', 'button:has-text("Log in")', 'button:has-text("Sign in")'];
+        for (const sel of submitSelectors) {
+          try {
+            await ab.click(sel);
+            break;
+          } catch { /* try next selector */ }
+        }
+
+        await ab.waitForLoad("networkidle");
+        out(`  Login flow completed\n`);
+      }
+
+      // Reload target URL after auth so session is active
+      if (resolvedAuth.loginUrl && context.url !== resolvedAuth.loginUrl) {
+        await ab.open(context.url, { viewport: `${vp.width}x${vp.height}` });
+        await ab.waitForLoad("domcontentloaded");
+      }
+
+      out(`> Authentication complete\n`);
+      execution.browserSessions++;
+      execution.navigations++;
+    }
 
     let pageMap = "";
     out(`> Crawling visible links and forms...\n`);

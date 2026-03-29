@@ -74,10 +74,10 @@ export default function Configuration() {
           &larr; Reports
         </Link>
         <Link
-          href="/docs/faq"
+          href="/docs/authentication"
           className="rounded border border-emerald-500/20 px-4 py-2 font-mono text-xs text-emerald-500/60 transition hover:border-emerald-400/50 hover:bg-emerald-400 hover:text-black"
         >
-          Next: FAQ &rarr;
+          Next: Authentication &rarr;
         </Link>
       </div>
     </div>

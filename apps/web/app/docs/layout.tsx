@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { href: "/docs/test-modes", label: "TEST-MODES" },
   { href: "/docs/reports", label: "REPORTS" },
   { href: "/docs/configuration", label: "CONFIGURATION" },
+  { href: "/docs/authentication", label: "AUTHENTICATION" },
   { href: "/docs/faq", label: "FAQ" },
 ];
 

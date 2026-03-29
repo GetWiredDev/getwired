@@ -144,6 +144,42 @@ export async function scroll(distance: number): Promise<string> {
   return exec(["scroll", direction, String(Math.abs(distance))]);
 }
 
+// ─── Authentication ─────────────────────────────────────────
+
+import type { AuthCookie } from "../config/settings.js";
+
+/**
+ * Inject cookies into the current browser session via JavaScript.
+ * Must be called after `open()` so there's an active page on the correct domain.
+ */
+export async function injectCookies(cookies: AuthCookie[]): Promise<void> {
+  if (cookies.length === 0) return;
+  const cookieStrings = cookies.map((c) => {
+    let str = `${encodeURIComponent(c.name)}=${encodeURIComponent(c.value)}`;
+    if (c.path) str += `; path=${c.path}`;
+    if (c.domain) str += `; domain=${c.domain}`;
+    if (c.secure) str += "; secure";
+    return str;
+  });
+  const script = cookieStrings
+    .map((cs) => `document.cookie = ${JSON.stringify(cs)};`)
+    .join("\n");
+  await evaluate(script);
+}
+
+/**
+ * Inject key/value pairs into localStorage in the current browser session.
+ * Must be called after `open()` so there's an active page on the correct domain.
+ */
+export async function injectLocalStorage(entries: Record<string, string>): Promise<void> {
+  const keys = Object.keys(entries);
+  if (keys.length === 0) return;
+  const lines = keys.map(
+    (k) => `localStorage.setItem(${JSON.stringify(k)}, ${JSON.stringify(entries[k])});`,
+  );
+  await evaluate(lines.join("\n"));
+}
+
 // ─── Session Management ──────────────────────────────────────
 
 export async function close(): Promise<string> {
