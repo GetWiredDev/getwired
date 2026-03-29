@@ -21,6 +21,27 @@ const isMac = platform() === "darwin";
 const isWindows = platform() === "win32";
 const hasBrew = !isWindows && tryExec("command -v brew");
 
+function buildToolClis(): Record<string, ProviderCli> {
+  const agentBrowserMethods: InstallMethod[] = [
+    { command: "npm install -g agent-browser", label: "npm" },
+  ];
+  if (hasBrew) {
+    agentBrowserMethods.push({
+      command: "brew install agent-browser",
+      label: "Homebrew",
+    });
+  }
+
+  return {
+    "agent-browser": {
+      binary: "agent-browser",
+      displayName: "Agent Browser",
+      installMethods: agentBrowserMethods,
+      manualInstructions: "npm install -g agent-browser",
+    },
+  };
+}
+
 function buildProviderClis(): Record<string, ProviderCli> {
   const claudeCodeMethods: InstallMethod[] = [];
   if (!isWindows) {
@@ -143,6 +164,41 @@ export function ensureProviderCli(providerName: string): boolean {
 
     if (runInstall(method.command)) {
       console.log(`   ✓ ${cli.displayName} CLI installed successfully.\n`);
+      return true;
+    }
+
+    console.log(`   ✗ ${method.label} failed, trying next method…`);
+  }
+
+  console.log(
+    `\n   ✗ Auto-install failed. Install manually:\n   ${cli.manualInstructions}\n`,
+  );
+  return false;
+}
+
+/**
+ * Ensures agent-browser CLI is installed and its browser engine is set up.
+ * Called before any browser operations in the test flow.
+ * Returns true if agent-browser is ready to use.
+ */
+export function ensureAgentBrowser(): boolean {
+  const clis = buildToolClis();
+  const cli = clis["agent-browser"];
+
+  if (tryExec(`command -v ${cli.binary}`)) {
+    return true;
+  }
+
+  console.log(`\n⚙  ${cli.displayName} not found — installing…`);
+
+  for (const method of cli.installMethods) {
+    console.log(`   Installing via ${method.label}…`);
+
+    if (runInstall(method.command)) {
+      // Run browser install after CLI is available
+      console.log(`   Installing browser engine…`);
+      runInstall("agent-browser install");
+      console.log(`   ✓ ${cli.displayName} installed successfully.\n`);
       return true;
     }
 

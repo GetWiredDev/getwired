@@ -1,5 +1,5 @@
 {
-  "provider": "opencode",
+  "provider": "claude-code",
   "auth": {},
   "testing": {
     "deviceProfile": "desktop",

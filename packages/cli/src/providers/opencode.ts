@@ -9,6 +9,7 @@ import {
   StreamChunk,
   TestContext,
   TestFinding,
+  ToolCall,
 } from "./types.js";
 import { buildTestPlanPrompt, buildScreenshotEvalPrompt, buildRegressionPrompt } from "./auggie.js";
 
@@ -18,7 +19,7 @@ export class OpenCodeProvider extends TestingProvider {
     displayName: "OpenCode",
     authType: "subscription",
     authInstructions:
-      "Requires OpenCode CLI installed and authenticated. Install via `npm install -g opencode-ai` or `brew install anomalyco/tap/opencode`. Run `opencode auth login` to configure your provider.",
+      "Requires OpenCode CLI installed plus a configured provider/model. Install via `npm install -g opencode-ai` or `brew install anomalyco/tap/opencode`. Run `opencode auth login` (or `/connect` in the TUI) to add credentials, then set a default model in your OpenCode config or via `OPENCODE_MODEL`.",
   };
 
   async validateAuth(auth: ProviderAuth): Promise<boolean> {
@@ -37,8 +38,10 @@ export class OpenCodeProvider extends TestingProvider {
 
   async *stream(context: TestContext, messages: ProviderMessage[]): AsyncGenerator<StreamChunk> {
     const prompt = messages.map((m) => m.content).join("\n\n");
-    const proc = spawn("opencode", ["run", prompt], {
-      cwd: context.reportDir,
+    const proc = spawn("opencode", buildOpenCodeArgs(prompt, context.projectPath, "json"), {
+      // OpenCode resolves model/config/project context from the working tree,
+      // so run it from the repo instead of the generated report directory.
+      cwd: context.projectPath,
       stdio: ["pipe", "pipe", "pipe"],
     });
 
@@ -50,10 +53,23 @@ export class OpenCodeProvider extends TestingProvider {
     });
 
     const chunks = createChunkQueue(proc.stdout!, proc.stderr!);
+    let buffer = "";
 
-    for await (const text of chunks) {
-      if (text.trim()) {
-        yield { type: "text", content: text };
+    for await (const raw of chunks) {
+      buffer += raw;
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+
+      for (const line of lines) {
+        for (const chunk of parseOpenCodeLine(line)) {
+          yield chunk;
+        }
+      }
+    }
+
+    if (buffer.trim()) {
+      for (const chunk of parseOpenCodeLine(buffer)) {
+        yield chunk;
       }
     }
 
@@ -99,7 +115,7 @@ export class OpenCodeProvider extends TestingProvider {
 
   private execOpenCode(prompt: string, cwd?: string): Promise<string> {
     return new Promise((resolve, reject) => {
-      const proc = spawn("opencode", ["run", "--format", "json", prompt], {
+      const proc = spawn("opencode", buildOpenCodeArgs(prompt, cwd, "json"), {
         cwd,
         stdio: ["pipe", "pipe", "pipe"],
       });
@@ -116,14 +132,7 @@ export class OpenCodeProvider extends TestingProvider {
 
       proc.on("close", (code) => {
         if (code === 0) {
-          // opencode run --format json returns structured output;
-          // extract the text content from the response
-          try {
-            const parsed = JSON.parse(stdout.trim());
-            resolve(typeof parsed.content === "string" ? parsed.content : stdout.trim());
-          } catch {
-            resolve(stdout.trim());
-          }
+          resolve(extractOpenCodeText(stdout));
         } else {
           reject(new Error(`OpenCode exited with code ${code}: ${stderr}`));
         }
@@ -131,6 +140,132 @@ export class OpenCodeProvider extends TestingProvider {
       proc.on("error", (err) => reject(err));
     });
   }
+}
+
+function buildOpenCodeArgs(prompt: string, dir?: string, format: "default" | "json" = "json"): string[] {
+  const args = ["run", "--format", format];
+  if (dir) {
+    args.push("--dir", dir);
+  }
+  const model = process.env.OPENCODE_MODEL?.trim();
+  if (model) {
+    args.push("--model", model);
+  }
+  args.push(prompt);
+  return args;
+}
+
+function extractOpenCodeText(output: string): string {
+  const normalized = stripAnsi(output).trim();
+  if (!normalized) {
+    return "";
+  }
+
+  const lines = normalized.split("\n").filter((line) => line.trim());
+  const texts: string[] = [];
+
+  for (const line of lines) {
+    try {
+      const parsed = JSON.parse(line) as unknown;
+      collectOpenCodeEvent(parsed, texts, []);
+    } catch {
+      return normalized;
+    }
+  }
+
+  return texts.length > 0 ? texts.join("") : normalized;
+}
+
+function parseOpenCodeLine(line: string): StreamChunk[] {
+  const cleaned = stripAnsi(line).trim();
+  if (!cleaned) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(cleaned) as unknown;
+    const texts: string[] = [];
+    const toolCalls: ToolCall[] = [];
+    collectOpenCodeEvent(parsed, texts, toolCalls);
+
+    const chunks: StreamChunk[] = [];
+    for (const text of texts) {
+      if (text) {
+        chunks.push({ type: "text", content: text });
+      }
+    }
+    for (const toolCall of toolCalls) {
+      chunks.push({ type: "tool_call", toolCall });
+    }
+    return chunks;
+  } catch {
+    return [{ type: "text", content: cleaned + "\n" }];
+  }
+}
+
+function collectOpenCodeEvent(value: unknown, texts: string[], toolCalls: ToolCall[]): void {
+  if (!value || typeof value !== "object") {
+    return;
+  }
+
+  const event = value as {
+    type?: string;
+    text?: unknown;
+    tool?: unknown;
+    callID?: unknown;
+    state?: { input?: unknown };
+    delta?: unknown;
+    part?: unknown;
+    parts?: unknown;
+    data?: unknown;
+    message?: unknown;
+    content?: unknown;
+  };
+
+  if (event.type === "text" && typeof event.text === "string") {
+    texts.push(event.text);
+    return;
+  }
+
+  if (event.type === "tool" && typeof event.tool === "string") {
+    toolCalls.push({
+      id: typeof event.callID === "string" ? event.callID : event.tool,
+      name: event.tool,
+      args: isRecord(event.state?.input) ? event.state.input : {},
+    });
+    return;
+  }
+
+  if (isRecord(event.delta)) {
+    collectOpenCodeEvent(event.delta, texts, toolCalls);
+  }
+  if (isRecord(event.part)) {
+    collectOpenCodeEvent(event.part, texts, toolCalls);
+  }
+  if (Array.isArray(event.parts)) {
+    for (const part of event.parts) {
+      collectOpenCodeEvent(part, texts, toolCalls);
+    }
+  }
+  if (isRecord(event.data)) {
+    collectOpenCodeEvent(event.data, texts, toolCalls);
+  }
+  if (isRecord(event.message)) {
+    collectOpenCodeEvent(event.message, texts, toolCalls);
+  }
+  if (Array.isArray(event.content)) {
+    for (const item of event.content) {
+      collectOpenCodeEvent(item, texts, toolCalls);
+    }
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function stripAnsi(text: string): string {
+  return text.replace(/\u001B\[[0-?]*[ -/]*[@-~]/g, "");
 }
 
 async function* createChunkQueue(stdout: Readable, stderr: Readable): AsyncGenerator<string> {

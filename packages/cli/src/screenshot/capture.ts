@@ -1,6 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import { getBrowserSession } from "../browser/session.js";
+import * as ab from "../browser/agent-browser.js";
 import type { DeviceProfile } from "../providers/types.js";
 
 export interface CaptureOptions {
@@ -30,9 +30,6 @@ const MOBILE_USER_AGENT =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
 
 export async function captureScreenshots(options: CaptureOptions): Promise<CaptureResult[]> {
-  // Dynamic import — playwright is an optional peer dep
-  const { chromium, devices } = await import("playwright");
-
   await mkdir(options.outputDir, { recursive: true });
 
   const results: CaptureResult[] = [];
@@ -40,36 +37,26 @@ export async function captureScreenshots(options: CaptureOptions): Promise<Captu
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
   const slug = slugify(options.url);
 
-  const browser = await chromium.launch(getBrowserSession(options.showBrowser ?? false).launchOptions);
-
   try {
     for (const device of devicesToTest) {
       const isDesktop = device === "desktop";
       const viewport = isDesktop ? options.viewports.desktop : options.viewports.mobile;
 
-      const context = await browser.newContext({
-        viewport,
+      await ab.open(options.url, {
+        viewport: `${viewport.width}x${viewport.height}`,
         userAgent: isDesktop ? undefined : MOBILE_USER_AGENT,
-        isMobile: !isDesktop,
-        hasTouch: !isDesktop,
-        deviceScaleFactor: isDesktop ? 1 : 3,
       });
 
-      const page = await context.newPage();
-
-      await page.goto(options.url, { waitUntil: "networkidle", timeout: 30_000 });
+      await ab.waitForLoad("networkidle");
 
       if (options.delay > 0) {
-        await page.waitForTimeout(options.delay);
+        await ab.waitMs(options.delay);
       }
 
       const filename = `${slug}-${device}-${options.label ?? timestamp}.png`;
       const screenshotPath = join(options.outputDir, filename);
 
-      await page.screenshot({
-        path: screenshotPath,
-        fullPage: options.fullPage,
-      });
+      await ab.screenshot(screenshotPath, { fullPage: options.fullPage });
 
       results.push({
         device,
@@ -79,11 +66,9 @@ export async function captureScreenshots(options: CaptureOptions): Promise<Captu
         height: viewport.height,
         timestamp: new Date().toISOString(),
       });
-
-      await context.close();
     }
   } finally {
-    await browser.close();
+    await ab.close();
   }
 
   return results;

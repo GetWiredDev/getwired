@@ -38,7 +38,7 @@ export class ClaudeCodeProvider extends TestingProvider {
     const prompt = messages.map((m) => m.content).join("\n\n");
     const proc = spawn(
       "claude",
-      ["--print", "--output-format", "stream-json", "-p", prompt],
+      ["--print", "--verbose", "--output-format", "stream-json", "-p", prompt],
       { cwd: context.reportDir, stdio: ["pipe", "pipe", "pipe"] },
     );
 

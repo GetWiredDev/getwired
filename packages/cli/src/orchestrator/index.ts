@@ -4,6 +4,7 @@ import { join, relative } from "node:path";
 import { execSync } from "node:child_process";
 import { createConnection } from "node:net";
 import { getBrowserSession } from "../browser/session.js";
+import { ensureAgentBrowser } from "../providers/ensure-cli.js";
 import { getProvider } from "../providers/registry.js";
 import { loadConfig, getBaselineDir, getReportDir, getNotesDir, getMemoryPath } from "../config/settings.js";
 import { captureScreenshots, captureMultiplePages } from "../screenshot/capture.js";
@@ -47,7 +48,7 @@ export interface OrchestratorCallbacks {
   onProviderOutput?: (text: string) => void;
 }
 
-// ─── Interaction action types for Playwright execution ───
+// ─── Interaction action types for browser execution ───
 interface TestAction {
   type: "navigate" | "click" | "fill" | "select" | "scroll" | "wait" | "screenshot" | "assert" | "keyboard";
   selector?: string;
@@ -96,7 +97,14 @@ export async function runTestSession(
   const startTime = Date.now();
   const settings = await loadConfig(projectPath);
   const provider = getProvider(settings.provider);
+
+  // Ensure agent-browser CLI is installed before any browser operations
+  if (!ensureAgentBrowser()) {
+    throw new Error("agent-browser is required but could not be installed. Install manually: npm install -g agent-browser");
+  }
+
   const browserSession = getBrowserSession(settings.testing.showBrowser);
+  // Note: browserSession.label is used for display only — agent-browser handles its own daemon
   const persona = options.persona ?? "standard";
   const personaProfile = getPersonaProfile(persona);
   const findings: TestFinding[] = [];
@@ -238,7 +246,7 @@ export async function runTestSession(
         undefined,
         captures.length > 0
           ? `Saved ${captures.length} screenshot${captures.length === 1 ? "" : "s"} to ${toProjectRelativePath(projectPath, join(context.reportDir, "screenshots"))}`
-          : "Playwright ran but did not save any screenshots",
+          : "Browser ran but did not save any screenshots",
       );
     } catch (err) {
       out(`\n! Screenshot failed: ${String(err).slice(0, 100)}\n`);
@@ -296,7 +304,7 @@ export async function runTestSession(
         ? `Executed ${scenarioExecution.executedScenarios} scenario${scenarioExecution.executedScenarios === 1 ? "" : "s"} with ${scenarioExecution.navigations} navigations and ${scenarioExecution.screenshots} screenshots`
         : allScenarios.length === 0
           ? "Provider returned no executable browser scenarios"
-          : scenarioExecution?.error ?? "Playwright did not complete any scenario",
+          : scenarioExecution?.error ?? "Browser did not complete any scenario",
     );
 
     // ── Step 7: Accessibility & keyboard-only ────────────
@@ -591,7 +599,7 @@ ${testPlan.slice(0, 4000)}`;
 - Edge cases: boundary values, empty/overflow states, timing, responsive breakpoints
 - Error recovery: what happens when things go wrong and the user tries to recover`;
 
-  return `Now generate the actual Playwright test scenarios for this site. Use your earlier analysis — you already identified what's here and what's worth testing.
+  return `Now generate the actual test scenarios for this site. Use your earlier analysis — you already identified what's here and what's worth testing.
 
 ${baseInfo}
 
@@ -765,73 +773,83 @@ function getPersonaPromptGuidance(
 // ─── Site crawler — discover what's on the page ────────────
 async function crawlSiteMap(url: string, out: (text: string) => void, _showBrowser: boolean): Promise<string> {
   try {
-    const { chromium } = await import("playwright");
-    // Always headless — this is just data collection, no need to show the browser
-    const browser = await chromium.launch({ headless: true });
-    const page = await browser.newPage();
-    await page.goto(url, { waitUntil: "networkidle", timeout: 30_000 });
+    const ab = await import("../browser/agent-browser.js");
 
-    const siteInfo = await page.evaluate(() => {
-      const links = Array.from(document.querySelectorAll("a[href]"))
-        .map((a) => ({ text: a.textContent?.trim().slice(0, 50), href: (a as HTMLAnchorElement).href }))
-        .filter((l) => l.text && l.href && !l.href.startsWith("javascript:"))
-        .slice(0, 50);
+    await ab.open(url);
+    await ab.waitForLoad("networkidle");
 
-      const forms = Array.from(document.querySelectorAll("form")).map((form) => {
-        const inputs = Array.from(form.querySelectorAll("input, textarea, select")).map((el) => ({
-          tag: el.tagName.toLowerCase(),
-          type: (el as HTMLInputElement).type || "text",
-          name: (el as HTMLInputElement).name || (el as HTMLInputElement).placeholder || "",
-          required: (el as HTMLInputElement).required,
-          placeholder: (el as HTMLInputElement).placeholder || "",
-        }));
-        const buttons = Array.from(form.querySelectorAll("button, input[type=submit]"))
-          .map((b) => b.textContent?.trim() || (b as HTMLInputElement).value || "Submit");
-        return { action: form.action, method: form.method, inputs, buttons };
-      });
+    // Use page.evaluate equivalent to extract structured site info
+    let siteInfo: { title?: string; headings?: any[]; links?: any[]; forms?: any[]; buttons?: any[]; inputs?: any[]; images?: any[] };
+    try {
+      siteInfo = await ab.evaluateJson(`JSON.stringify((function() {
+        var links = Array.from(document.querySelectorAll("a[href]"))
+          .map(function(a) { return { text: (a.textContent || "").trim().slice(0, 50), href: a.href }; })
+          .filter(function(l) { return l.text && l.href && !l.href.startsWith("javascript:"); })
+          .slice(0, 50);
 
-      const buttons = Array.from(document.querySelectorAll("button:not(form button)"))
-        .map((b) => ({ text: b.textContent?.trim().slice(0, 50), disabled: (b as HTMLButtonElement).disabled }))
-        .filter((b) => b.text)
-        .slice(0, 30);
+        var forms = Array.from(document.querySelectorAll("form")).map(function(form) {
+          var inputs = Array.from(form.querySelectorAll("input, textarea, select")).map(function(el) {
+            return { tag: el.tagName.toLowerCase(), type: el.type || "text", name: el.name || el.placeholder || "", required: el.required, placeholder: el.placeholder || "" };
+          });
+          var buttons = Array.from(form.querySelectorAll("button, input[type=submit]"))
+            .map(function(b) { return (b.textContent || "").trim() || b.value || "Submit"; });
+          return { action: form.action, method: form.method, inputs: inputs, buttons: buttons };
+        });
 
-      const inputs = Array.from(document.querySelectorAll("input:not(form input), textarea:not(form textarea)"))
-        .map((el) => ({
-          type: (el as HTMLInputElement).type || "text",
-          name: (el as HTMLInputElement).name || (el as HTMLInputElement).placeholder || "",
-          placeholder: (el as HTMLInputElement).placeholder || "",
-        }))
-        .slice(0, 20);
+        var buttons = Array.from(document.querySelectorAll("button:not(form button)"))
+          .map(function(b) { return { text: (b.textContent || "").trim().slice(0, 50), disabled: b.disabled }; })
+          .filter(function(b) { return b.text; })
+          .slice(0, 30);
 
-      const headings = Array.from(document.querySelectorAll("h1, h2, h3"))
-        .map((h) => ({ level: h.tagName, text: h.textContent?.trim().slice(0, 80) }))
-        .slice(0, 20);
+        var inputs = Array.from(document.querySelectorAll("input:not(form input), textarea:not(form textarea)"))
+          .map(function(el) { return { type: el.type || "text", name: el.name || el.placeholder || "", placeholder: el.placeholder || "" }; })
+          .slice(0, 20);
 
-      const images = Array.from(document.querySelectorAll("img"))
-        .map((img) => ({ src: (img as HTMLImageElement).src?.slice(0, 80), alt: (img as HTMLImageElement).alt }))
-        .slice(0, 20);
+        var headings = Array.from(document.querySelectorAll("h1, h2, h3"))
+          .map(function(h) { return { level: h.tagName, text: (h.textContent || "").trim().slice(0, 80) }; })
+          .slice(0, 20);
 
-      return { title: document.title, links, forms, buttons, inputs, headings, images };
-    });
+        var images = Array.from(document.querySelectorAll("img"))
+          .map(function(img) { return { src: (img.src || "").slice(0, 80), alt: img.alt }; })
+          .slice(0, 20);
 
-    await browser.close();
+        return { title: document.title, links: links, forms: forms, buttons: buttons, inputs: inputs, headings: headings, images: images };
+      })())`);
+    } catch (parseErr) {
+      out(`  ! Could not parse page data: ${String(parseErr).slice(0, 120)}\n`);
+      return "";
+    }
+
+    await ab.close();
+
+    if (!siteInfo || typeof siteInfo !== "object") {
+      out(`  ! Unexpected page data format\n`);
+      return "";
+    }
 
     const lines: string[] = [];
-    lines.push(`Page title: ${siteInfo.title}`);
+    lines.push(`Page title: ${siteInfo.title ?? "unknown"}`);
 
-    if (siteInfo.headings.length > 0) {
+    const headings = siteInfo.headings ?? [];
+    const links = siteInfo.links ?? [];
+    const forms = siteInfo.forms ?? [];
+    const buttons = siteInfo.buttons ?? [];
+    const inputs = siteInfo.inputs ?? [];
+    const images = siteInfo.images ?? [];
+
+    if (headings.length > 0) {
       lines.push(`\nHeadings:`);
-      for (const h of siteInfo.headings) lines.push(`  ${h.level}: ${h.text}`);
+      for (const h of headings) lines.push(`  ${h.level}: ${h.text}`);
     }
 
-    if (siteInfo.links.length > 0) {
-      lines.push(`\nLinks (${siteInfo.links.length}):`);
-      for (const l of siteInfo.links) lines.push(`  "${l.text}" -> ${l.href}`);
+    if (links.length > 0) {
+      lines.push(`\nLinks (${links.length}):`);
+      for (const l of links) lines.push(`  "${l.text}" -> ${l.href}`);
     }
 
-    if (siteInfo.forms.length > 0) {
-      lines.push(`\nForms (${siteInfo.forms.length}):`);
-      for (const f of siteInfo.forms) {
+    if (forms.length > 0) {
+      lines.push(`\nForms (${forms.length}):`);
+      for (const f of forms) {
         lines.push(`  Form: ${f.method.toUpperCase()} ${f.action}`);
         for (const inp of f.inputs) {
           lines.push(`    <${inp.tag} type="${inp.type}" name="${inp.name}" ${inp.required ? "REQUIRED" : ""} placeholder="${inp.placeholder}">`);
@@ -840,23 +858,23 @@ async function crawlSiteMap(url: string, out: (text: string) => void, _showBrows
       }
     }
 
-    if (siteInfo.buttons.length > 0) {
-      lines.push(`\nStandalone buttons (${siteInfo.buttons.length}):`);
-      for (const b of siteInfo.buttons) lines.push(`  [${b.disabled ? "DISABLED" : "active"}] "${b.text}"`);
+    if (buttons.length > 0) {
+      lines.push(`\nStandalone buttons (${buttons.length}):`);
+      for (const b of buttons) lines.push(`  [${b.disabled ? "DISABLED" : "active"}] "${b.text}"`);
     }
 
-    if (siteInfo.inputs.length > 0) {
-      lines.push(`\nStandalone inputs (${siteInfo.inputs.length}):`);
-      for (const inp of siteInfo.inputs) lines.push(`  <input type="${inp.type}" placeholder="${inp.placeholder}">`);
+    if (inputs.length > 0) {
+      lines.push(`\nStandalone inputs (${inputs.length}):`);
+      for (const inp of inputs) lines.push(`  <input type="${inp.type}" placeholder="${inp.placeholder}">`);
     }
 
-    if (siteInfo.images.length > 0) {
-      const noAlt = siteInfo.images.filter((i) => !i.alt);
-      lines.push(`\nImages: ${siteInfo.images.length} total, ${noAlt.length} missing alt text`);
+    if (images.length > 0) {
+      const noAlt = images.filter((i: { alt: string }) => !i.alt);
+      lines.push(`\nImages: ${images.length} total, ${noAlt.length} missing alt text`);
     }
 
     const result = lines.join("\n");
-    out(`  Found: ${siteInfo.links.length} links, ${siteInfo.forms.length} forms, ${siteInfo.buttons.length} buttons\n`);
+    out(`  Found: ${links.length} links, ${forms.length} forms, ${buttons.length} buttons\n`);
     return result;
   } catch (err) {
     out(`  ! Crawl failed: ${String(err).slice(0, 80)}\n`);
@@ -864,7 +882,7 @@ async function crawlSiteMap(url: string, out: (text: string) => void, _showBrows
   }
 }
 
-// ─── Execute interaction scenarios via Playwright ──────────
+// ─── Execute interaction scenarios via agent-browser ──────────
 async function executeScenarios(
   scenarios: InteractionScenario[],
   context: TestContext,
@@ -881,37 +899,25 @@ async function executeScenarios(
   };
 
   try {
-    const { chromium } = await import("playwright");
-    const browser = await chromium.launch(getBrowserSession(settings.testing.showBrowser).launchOptions);
+    const ab = await import("../browser/agent-browser.js");
     stats.browserSessions++;
 
     for (const scenario of scenarios) {
       out(`\n  ── ${scenario.category}: ${scenario.name} ──\n`);
-      const page = await browser.newPage({
-        viewport: settings.testing.viewports.desktop,
-      });
-      const consoleErrors: string[] = [];
-      const networkErrors: string[] = [];
 
-      page.on("console", (msg) => {
-        if (msg.type() === "error") consoleErrors.push(msg.text());
-      });
-      page.on("pageerror", (err) => {
-        consoleErrors.push(err.message);
-      });
-      page.on("response", (res) => {
-        if (res.status() >= 500) {
-          networkErrors.push(`${res.status()} ${res.url()}`);
-        }
-      });
+      // Open a fresh page with desktop viewport
+      const vp = settings.testing.viewports.desktop;
 
       let currentUrl = context.url ?? "";
       let stepFailed = false;
       let navigationOccurred = false;
 
       if (context.url) {
-        await page.goto(context.url, { waitUntil: "domcontentloaded", timeout: 15_000 });
-        currentUrl = page.url();
+        await ab.open(context.url, { viewport: `${vp.width}x${vp.height}` });
+        await ab.waitForLoad("domcontentloaded");
+        // Inject error catcher to capture console errors
+        await ab.injectErrorCatcher();
+        currentUrl = context.url;
         stats.navigations++;
         navigationOccurred = true;
       }
@@ -924,60 +930,62 @@ async function executeScenarios(
           switch (action.type) {
             case "navigate": {
               const target = action.url ?? action.value ?? context.url ?? "";
-              // Resolve relative URLs
               const resolvedUrl = target.startsWith("http") ? target : new URL(target, currentUrl).href;
-              await page.goto(resolvedUrl, { waitUntil: "domcontentloaded", timeout: 15_000 });
-              currentUrl = page.url();
+              await ab.open(resolvedUrl);
+              await ab.waitForLoad("domcontentloaded");
+              await ab.injectErrorCatcher();
+              currentUrl = resolvedUrl;
               stats.navigations++;
               navigationOccurred = true;
               break;
             }
             case "click": {
               if (action.selector) {
-                const el = page.locator(action.selector).first();
-                await el.click({ timeout: 5_000 }).catch(async () => {
+                try {
+                  await ab.click(action.selector);
+                } catch {
                   // Try by text content as fallback
                   if (action.value) {
-                    await page.getByText(action.value, { exact: false }).first().click({ timeout: 5_000 });
+                    await ab.click(`text=${action.value}`);
                   }
-                });
+                }
               }
               break;
             }
             case "fill": {
               if (action.selector) {
-                const selector = action.selector;
-                const el = page.locator(selector).first();
-                await el.fill(action.value ?? "", { timeout: 5_000 }).catch(async () => {
+                try {
+                  await ab.fill(action.selector, action.value ?? "");
+                } catch {
                   // Try by placeholder as fallback
                   if (action.value !== undefined) {
-                    const byPlaceholder = page.getByPlaceholder(selector.replace(/[[\]"']/g, "")).first();
-                    await byPlaceholder.fill(action.value, { timeout: 3_000 });
+                    const cleanSelector = action.selector.replace(/[[\]"']/g, "");
+                    await ab.fill(`[placeholder="${cleanSelector}"]`, action.value);
                   }
-                });
+                }
               }
               break;
             }
             case "select": {
               if (action.selector && action.value) {
-                await page.locator(action.selector).first().selectOption(action.value, { timeout: 5_000 });
+                await ab.selectOption(action.selector, action.value);
               }
               break;
             }
             case "keyboard": {
               if (action.key) {
-                await page.keyboard.press(action.key);
+                await ab.press(action.key);
               }
               break;
             }
             case "scroll": {
               const distance = parseInt(action.value ?? "500", 10);
-              await page.evaluate((d) => window.scrollBy(0, d), distance);
+              await ab.scroll(distance);
               break;
             }
             case "wait": {
               const ms = parseInt(action.value ?? "1000", 10);
-              await page.waitForTimeout(Math.min(ms, 5000));
+              await ab.waitMs(Math.min(ms, 5000));
               break;
             }
             case "screenshot": {
@@ -986,25 +994,39 @@ async function executeScenarios(
                 `${scenario.name.replace(/[^a-zA-Z0-9]/g, "-").slice(0, 40)}-${Date.now()}.png`,
               );
               await mkdir(join(context.reportDir, "screenshots"), { recursive: true });
-              await page.screenshot({ path: screenshotPath, fullPage: false });
+              await ab.screenshot(screenshotPath);
               stats.screenshots++;
               out(`      [screenshot saved: ${toProjectRelativePath(context.projectPath, screenshotPath)}]\n`);
               break;
             }
             case "assert": {
-              // Check if something expected is visible or absent
               if (action.selector) {
-                const visible = await page.locator(action.selector).first().isVisible({ timeout: 3_000 }).catch(() => false);
-                if (!visible && action.value === "visible") {
-                  findings.push({
-                    id: `assert-${generateId()}`,
-                    severity: "medium",
-                    category: "functional",
-                    title: `Expected element not visible: ${action.selector}`,
-                    description: `During "${scenario.name}": ${action.description}`,
-                    url: page.url(),
-                    steps: scenario.actions.map((a) => a.description),
-                  });
+                try {
+                  const snap = await ab.snapshot({ scope: action.selector });
+                  const visible = snap.length > 0;
+                  if (!visible && action.value === "visible") {
+                    findings.push({
+                      id: `assert-${generateId()}`,
+                      severity: "medium",
+                      category: "functional",
+                      title: `Expected element not visible: ${action.selector}`,
+                      description: `During "${scenario.name}": ${action.description}`,
+                      url: currentUrl,
+                      steps: scenario.actions.map((a) => a.description),
+                    });
+                  }
+                } catch {
+                  if (action.value === "visible") {
+                    findings.push({
+                      id: `assert-${generateId()}`,
+                      severity: "medium",
+                      category: "functional",
+                      title: `Expected element not visible: ${action.selector}`,
+                      description: `During "${scenario.name}": ${action.description}`,
+                      url: currentUrl,
+                      steps: scenario.actions.map((a) => a.description),
+                    });
+                  }
                 }
               }
               break;
@@ -1014,9 +1036,6 @@ async function executeScenarios(
           const errMsg = String(err).slice(0, 150);
           out(`      ! Action failed: ${errMsg}\n`);
 
-          // A failed action during an abuse/edge-case test isn't necessarily a bug —
-          // if the site properly blocks it, that's good. But if it's a crash or
-          // unhandled error, it's a finding.
           if (scenario.category === "happy-path") {
             findings.push({
               id: `scenario-${generateId()}`,
@@ -1024,7 +1043,7 @@ async function executeScenarios(
               category: "functional",
               title: `Happy path broken: ${action.description}`,
               description: `During "${scenario.name}": ${errMsg}`,
-              url: page.url(),
+              url: currentUrl,
               device: "desktop",
               steps: scenario.actions.map((a) => a.description),
             });
@@ -1033,31 +1052,20 @@ async function executeScenarios(
         }
       }
 
-      // Check if any console errors or 500s happened during this scenario
-      if (consoleErrors.length > 0) {
+      // Retrieve console errors captured by the injected error catcher
+      const collected = await ab.getCollectedErrors();
+
+      if (collected.console.length > 0) {
         findings.push({
           id: `console-${generateId()}`,
           severity: scenario.category === "abuse" ? "medium" : "high",
           category: "console-error",
           title: `Console errors during: ${scenario.name}`,
-          description: consoleErrors.slice(0, 5).join("\n"),
-          url: page.url(),
+          description: collected.console.slice(0, 5).join("\n"),
+          url: currentUrl,
           steps: scenario.actions.map((a) => a.description),
         });
-        out(`      ! ${consoleErrors.length} console error(s)\n`);
-      }
-
-      if (networkErrors.length > 0) {
-        findings.push({
-          id: `network-${generateId()}`,
-          severity: "high",
-          category: "functional",
-          title: `Server errors (5xx) during: ${scenario.name}`,
-          description: networkErrors.join("\n"),
-          url: page.url(),
-          steps: scenario.actions.map((a) => a.description),
-        });
-        out(`      ! ${networkErrors.length} server error(s)\n`);
+        out(`      ! ${collected.console.length} console error(s)\n`);
       }
 
       // Take a final screenshot of the state after this scenario
@@ -1067,17 +1075,16 @@ async function executeScenarios(
           `${scenario.category}-${scenario.name.replace(/[^a-zA-Z0-9]/g, "-").slice(0, 30)}-final.png`,
         );
         await mkdir(join(context.reportDir, "screenshots"), { recursive: true });
-        await page.screenshot({ path: finalPath, fullPage: false });
+        await ab.screenshot(finalPath);
         stats.screenshots++;
       } catch { /* page may have navigated away */ }
 
       if (navigationOccurred) {
         stats.executedScenarios++;
       }
-      await page.close();
     }
 
-    await browser.close();
+    await ab.close();
   } catch (err) {
     const error = `Browser execution failed: ${String(err).slice(0, 120)}`;
     stats.error = error;
@@ -1087,7 +1094,7 @@ async function executeScenarios(
   return stats;
 }
 
-// ─── Real accessibility testing via Playwright ─────────────
+// ─── Real accessibility testing via agent-browser ─────────────
 async function testAccessibility(
   context: TestContext,
   settings: GetwiredSettings,
@@ -1104,11 +1111,12 @@ async function testAccessibility(
   if (!context.url) return result;
 
   try {
-    const { chromium } = await import("playwright");
-    const browser = await chromium.launch(getBrowserSession(settings.testing.showBrowser).launchOptions);
+    const ab = await import("../browser/agent-browser.js");
+    const vp = settings.testing.viewports.desktop;
+
+    await ab.open(context.url, { viewport: `${vp.width}x${vp.height}` });
+    await ab.waitForLoad("networkidle");
     result.browserSessions++;
-    const page = await browser.newPage({ viewport: settings.testing.viewports.desktop });
-    await page.goto(context.url, { waitUntil: "networkidle", timeout: 30_000 });
     result.navigations++;
 
     // Tab through the entire page and check focus visibility
@@ -1119,28 +1127,29 @@ async function testAccessibility(
     const seenElements = new Set<string>();
 
     for (let i = 0; i < 50; i++) {
-      await page.keyboard.press("Tab");
+      await ab.press("Tab");
       tabCount++;
 
-      const focusInfo = await page.evaluate(() => {
-        const el = document.activeElement;
-        if (!el || el === document.body) return null;
-
-        const rect = el.getBoundingClientRect();
-        const styles = window.getComputedStyle(el);
-        const outlineVisible = styles.outline !== "none" && styles.outline !== "" && styles.outlineWidth !== "0px";
-        const boxShadowVisible = styles.boxShadow !== "none" && styles.boxShadow !== "";
-        const bgChanged = styles.backgroundColor !== "rgba(0, 0, 0, 0)";
-
-        return {
-          tag: el.tagName,
-          text: el.textContent?.trim().slice(0, 30) ?? "",
-          visible: rect.width > 0 && rect.height > 0,
-          focusIndicatorVisible: outlineVisible || boxShadowVisible || bgChanged,
-          role: el.getAttribute("role"),
-          ariaLabel: el.getAttribute("aria-label"),
-        };
-      });
+      let focusInfo: { tag: string; text: string; visible: boolean; focusIndicatorVisible: boolean; role: string | null; ariaLabel: string | null } | null = null;
+      try {
+        focusInfo = await ab.evaluateJson(`JSON.stringify((function() {
+          var el = document.activeElement;
+          if (!el || el === document.body) return null;
+          var rect = el.getBoundingClientRect();
+          var styles = window.getComputedStyle(el);
+          var outlineVisible = styles.outline !== "none" && styles.outline !== "" && styles.outlineWidth !== "0px";
+          var boxShadowVisible = styles.boxShadow !== "none" && styles.boxShadow !== "";
+          var bgChanged = styles.backgroundColor !== "rgba(0, 0, 0, 0)";
+          return {
+            tag: el.tagName,
+            text: (el.textContent || "").trim().slice(0, 30),
+            visible: rect.width > 0 && rect.height > 0,
+            focusIndicatorVisible: outlineVisible || boxShadowVisible || bgChanged,
+            role: el.getAttribute("role"),
+            ariaLabel: el.getAttribute("aria-label")
+          };
+        })())`);
+      } catch { /* ignore parse errors */ }
 
       if (!focusInfo) continue;
 
@@ -1182,12 +1191,15 @@ async function testAccessibility(
     out(`  Tabbed through ${tabCount} elements, ${seenElements.size} unique\n`);
 
     // Check images for alt text
-    const imgIssues = await page.evaluate(() => {
-      return Array.from(document.querySelectorAll("img"))
-        .filter((img) => !img.alt && img.getBoundingClientRect().width > 1)
-        .map((img) => (img as HTMLImageElement).src?.slice(0, 80))
-        .slice(0, 10);
-    });
+    let imgIssues: string[] = [];
+    try {
+      imgIssues = await ab.evaluateJson(`JSON.stringify(
+        Array.from(document.querySelectorAll("img"))
+          .filter(function(img) { return !img.alt && img.getBoundingClientRect().width > 1; })
+          .map(function(img) { return img.src.slice(0, 80); })
+          .slice(0, 10)
+      )`);
+    } catch { /* ignore */ }
 
     if (imgIssues.length > 0) {
       out(`    ! ${imgIssues.length} images missing alt text\n`);
@@ -1202,20 +1214,23 @@ async function testAccessibility(
     }
 
     // Check for form labels
-    const unlabeledInputs = await page.evaluate(() => {
-      return Array.from(document.querySelectorAll("input, textarea, select"))
-        .filter((el) => {
-          const id = el.id;
-          const hasLabel = id && document.querySelector(`label[for="${id}"]`);
-          const hasAriaLabel = el.getAttribute("aria-label");
-          const hasAriaLabelledBy = el.getAttribute("aria-labelledby");
-          const wrappedInLabel = el.closest("label");
-          const hasPlaceholder = (el as HTMLInputElement).placeholder;
-          return !hasLabel && !hasAriaLabel && !hasAriaLabelledBy && !wrappedInLabel && !hasPlaceholder;
-        })
-        .map((el) => `<${el.tagName.toLowerCase()} type="${(el as HTMLInputElement).type}" name="${(el as HTMLInputElement).name}">`)
-        .slice(0, 10);
-    });
+    let unlabeledInputs: string[] = [];
+    try {
+      unlabeledInputs = await ab.evaluateJson(`JSON.stringify(
+        Array.from(document.querySelectorAll("input, textarea, select"))
+          .filter(function(el) {
+            var id = el.id;
+            var hasLabel = id && document.querySelector('label[for="' + id + '"]');
+            var hasAriaLabel = el.getAttribute("aria-label");
+            var hasAriaLabelledBy = el.getAttribute("aria-labelledby");
+            var wrappedInLabel = el.closest("label");
+            var hasPlaceholder = el.placeholder;
+            return !hasLabel && !hasAriaLabel && !hasAriaLabelledBy && !wrappedInLabel && !hasPlaceholder;
+          })
+          .map(function(el) { return "<" + el.tagName.toLowerCase() + ' type="' + (el.type || "") + '" name="' + (el.name || "") + '">'; })
+          .slice(0, 10)
+      )`);
+    } catch { /* ignore */ }
 
     if (unlabeledInputs.length > 0) {
       out(`    ! ${unlabeledInputs.length} form inputs with no label\n`);
@@ -1231,21 +1246,21 @@ async function testAccessibility(
 
     // Check touch target sizes (mobile)
     if (context.deviceProfile !== "desktop") {
-      const smallTargets = await page.evaluate(() => {
-        const interactive = document.querySelectorAll("a, button, input, select, textarea, [role=button], [tabindex]");
-        return Array.from(interactive)
-          .filter((el) => {
-            const rect = el.getBoundingClientRect();
-            return rect.width > 0 && rect.height > 0 && (rect.width < 44 || rect.height < 44);
-          })
-          .map((el) => ({
-            tag: el.tagName,
-            text: el.textContent?.trim().slice(0, 30),
-            width: Math.round(el.getBoundingClientRect().width),
-            height: Math.round(el.getBoundingClientRect().height),
-          }))
-          .slice(0, 10);
-      });
+      let smallTargets: Array<{ tag: string; text: string; width: number; height: number }> = [];
+      try {
+        smallTargets = await ab.evaluateJson(`JSON.stringify(
+          Array.from(document.querySelectorAll("a, button, input, select, textarea, [role=button], [tabindex]"))
+            .filter(function(el) {
+              var rect = el.getBoundingClientRect();
+              return rect.width > 0 && rect.height > 0 && (rect.width < 44 || rect.height < 44);
+            })
+            .map(function(el) {
+              var rect = el.getBoundingClientRect();
+              return { tag: el.tagName, text: (el.textContent || "").trim().slice(0, 30), width: Math.round(rect.width), height: Math.round(rect.height) };
+            })
+            .slice(0, 10)
+        )`);
+      } catch { /* ignore */ }
 
       if (smallTargets.length > 0) {
         out(`    ! ${smallTargets.length} touch targets smaller than 44px\n`);
@@ -1268,7 +1283,7 @@ async function testAccessibility(
         `accessibility-${Date.now().toString(36)}.png`,
       );
       await mkdir(join(context.reportDir, "screenshots"), { recursive: true });
-      await page.screenshot({ path: screenshotPath, fullPage: false });
+      await ab.screenshot(screenshotPath);
       result.screenshots++;
       out(`  Accessibility screenshot: ${toProjectRelativePath(context.projectPath, screenshotPath)}\n`);
     } catch {
@@ -1276,7 +1291,7 @@ async function testAccessibility(
     }
 
     result.completed = true;
-    await browser.close();
+    await ab.close();
   } catch (err) {
     const error = `Accessibility test failed: ${String(err).slice(0, 80)}`;
     result.error = error;
