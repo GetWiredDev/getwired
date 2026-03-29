@@ -3,15 +3,6 @@ export interface ProviderMessage {
   content: string;
 }
 
-export interface ProviderResponse {
-  content: string;
-  toolCalls?: ToolCall[];
-  usage?: {
-    inputTokens: number;
-    outputTokens: number;
-  };
-}
-
 export interface ToolCall {
   id: string;
   name: string;
@@ -98,20 +89,7 @@ export interface ProviderAuth {
 export abstract class TestingProvider {
   abstract readonly config: ProviderConfig;
 
-  abstract validateAuth(auth: ProviderAuth): Promise<boolean>;
-
-  abstract analyze(context: TestContext, messages: ProviderMessage[]): Promise<ProviderResponse>;
-
   abstract stream(context: TestContext, messages: ProviderMessage[]): AsyncGenerator<StreamChunk>;
-
-  abstract generateTestPlan(context: TestContext, projectInfo: string): Promise<string>;
-
-  abstract evaluateScreenshot(
-    screenshotBase64: string,
-    url: string,
-    device: "desktop" | "mobile",
-    instructions?: string,
-  ): Promise<string>;
 
   abstract evaluateRegression(
     baselineBase64: string,

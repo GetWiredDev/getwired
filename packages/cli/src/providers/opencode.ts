@@ -3,15 +3,13 @@ import type { Readable } from "node:stream";
 import {
   TestingProvider,
   ProviderConfig,
-  ProviderAuth,
   ProviderMessage,
-  ProviderResponse,
   StreamChunk,
   TestContext,
   TestFinding,
   ToolCall,
 } from "./types.js";
-import { buildTestPlanPrompt, buildScreenshotEvalPrompt, buildRegressionPrompt } from "./auggie.js";
+import { buildRegressionPrompt } from "./auggie.js";
 
 export class OpenCodeProvider extends TestingProvider {
   readonly config: ProviderConfig = {
@@ -21,20 +19,6 @@ export class OpenCodeProvider extends TestingProvider {
     authInstructions:
       "Requires OpenCode CLI installed plus a configured provider/model. Install via `npm install -g opencode-ai` or `brew install anomalyco/tap/opencode`. Run `opencode auth login` (or `/connect` in the TUI) to add credentials, then set a default model in your OpenCode config or via `OPENCODE_MODEL`.",
   };
-
-  async validateAuth(auth: ProviderAuth): Promise<boolean> {
-    return new Promise((resolve) => {
-      const proc = spawn("opencode", ["--version"], { stdio: "pipe" });
-      proc.on("close", (code) => resolve(code === 0));
-      proc.on("error", () => resolve(false));
-    });
-  }
-
-  async analyze(context: TestContext, messages: ProviderMessage[]): Promise<ProviderResponse> {
-    const prompt = messages.map((m) => m.content).join("\n\n");
-    const result = await this.execOpenCode(prompt, context.reportDir);
-    return { content: result };
-  }
 
   async *stream(context: TestContext, messages: ProviderMessage[]): AsyncGenerator<StreamChunk> {
     const prompt = messages.map((m) => m.content).join("\n\n");
@@ -80,21 +64,6 @@ export class OpenCodeProvider extends TestingProvider {
     }
 
     yield { type: "done" };
-  }
-
-  async generateTestPlan(context: TestContext, projectInfo: string): Promise<string> {
-    const prompt = buildTestPlanPrompt(context, projectInfo);
-    return this.execOpenCode(prompt, context.reportDir);
-  }
-
-  async evaluateScreenshot(
-    screenshotBase64: string,
-    url: string,
-    device: "desktop" | "mobile",
-    instructions?: string,
-  ): Promise<string> {
-    const prompt = buildScreenshotEvalPrompt(url, device, instructions);
-    return this.execOpenCode(prompt);
   }
 
   async evaluateRegression(

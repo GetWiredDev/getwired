@@ -3,9 +3,7 @@ import type { Readable } from "node:stream";
 import {
   TestingProvider,
   ProviderConfig,
-  ProviderAuth,
   ProviderMessage,
-  ProviderResponse,
   StreamChunk,
   TestContext,
   TestFinding,
@@ -19,20 +17,6 @@ export class ClaudeCodeProvider extends TestingProvider {
     authInstructions:
       "Requires an active Claude Code subscription. Make sure `claude` CLI is installed and authenticated.",
   };
-
-  async validateAuth(auth: ProviderAuth): Promise<boolean> {
-    return new Promise((resolve) => {
-      const proc = spawn("claude", ["--version"], { stdio: "pipe" });
-      proc.on("close", (code) => resolve(code === 0));
-      proc.on("error", () => resolve(false));
-    });
-  }
-
-  async analyze(context: TestContext, messages: ProviderMessage[]): Promise<ProviderResponse> {
-    const prompt = messages.map((m) => m.content).join("\n\n");
-    const result = await this.execClaude(prompt, context.reportDir);
-    return { content: result };
-  }
 
   async *stream(context: TestContext, messages: ProviderMessage[]): AsyncGenerator<StreamChunk> {
     const prompt = messages.map((m) => m.content).join("\n\n");
@@ -92,59 +76,6 @@ export class ClaudeCodeProvider extends TestingProvider {
     }
 
     yield { type: "done" };
-  }
-
-  async generateTestPlan(context: TestContext, projectInfo: string): Promise<string> {
-    const prompt = `You are GetWired, a human-like AI testing expert. Analyze this project and create a comprehensive test plan.
-
-Project path: ${context.projectPath}
-URL: ${context.url ?? "not provided"}
-Device targets: ${context.deviceProfile}
-Test scope: ${context.scope ?? "full"}
-${context.commitId ? `Testing against commit: ${context.commitId}` : ""}
-${context.prId ? `Testing PR: #${context.prId}` : ""}
-
-Project info:
-${projectInfo}
-
-Create a detailed test plan covering:
-1. Critical user flows to test
-2. UI elements to visually inspect
-3. Forms and interactions to validate
-4. Responsive/mobile-specific checks (if applicable)
-5. Accessibility checks
-6. Console error monitoring
-
-Return the plan as a structured JSON array of test steps.`;
-
-    return this.execClaude(prompt, context.reportDir);
-  }
-
-  async evaluateScreenshot(
-    screenshotBase64: string,
-    url: string,
-    device: "desktop" | "mobile",
-    instructions?: string,
-  ): Promise<string> {
-    const prompt = `You are GetWired, a human-like AI testing expert examining a screenshot.
-
-URL: ${url}
-Device: ${device}
-${instructions ? `Instructions: ${instructions}` : ""}
-
-Analyze this screenshot as a human QA tester would. Look for:
-- Visual bugs (misalignment, overflow, clipping, z-index issues)
-- Missing or broken images
-- Text readability issues
-- Responsive layout problems
-- Accessibility concerns (contrast, touch targets)
-- General UX issues
-
-Provide findings as JSON array of objects with: severity, category, title, description.
-
-Screenshot (base64): ${screenshotBase64.slice(0, 100)}... [truncated for prompt, full image passed via tool]`;
-
-    return this.execClaude(prompt);
   }
 
   async evaluateRegression(

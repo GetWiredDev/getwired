@@ -64,11 +64,11 @@ const DEFAULT_SETTINGS: GetwiredSettings = {
   },
 };
 
-export function getConfigDir(projectPath: string): string {
+function getConfigDir(projectPath: string): string {
   return join(projectPath, ".getwired");
 }
 
-export function getConfigPath(projectPath: string): string {
+function getConfigPath(projectPath: string): string {
   return join(getConfigDir(projectPath), "config.json");
 }
 

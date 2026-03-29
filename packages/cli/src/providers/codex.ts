@@ -3,14 +3,12 @@ import type { Readable } from "node:stream";
 import {
   TestingProvider,
   ProviderConfig,
-  ProviderAuth,
   ProviderMessage,
-  ProviderResponse,
   StreamChunk,
   TestContext,
   TestFinding,
 } from "./types.js";
-import { buildTestPlanPrompt, buildScreenshotEvalPrompt, buildRegressionPrompt } from "./auggie.js";
+import { buildRegressionPrompt } from "./auggie.js";
 
 export class CodexProvider extends TestingProvider {
   readonly config: ProviderConfig = {
@@ -20,26 +18,6 @@ export class CodexProvider extends TestingProvider {
     authInstructions:
       "Requires an OpenAI subscription. Make sure `codex` CLI is installed and authenticated. Set OPENAI_API_KEY or run `codex login`.",
   };
-
-  async validateAuth(auth: ProviderAuth): Promise<boolean> {
-    if (auth.apiKey) {
-      return auth.apiKey.startsWith("sk-");
-    }
-    if (auth.envVar && process.env[auth.envVar]) {
-      return true;
-    }
-    return new Promise((resolve) => {
-      const proc = spawn("codex", ["--version"], { stdio: "pipe" });
-      proc.on("close", (code) => resolve(code === 0));
-      proc.on("error", () => resolve(false));
-    });
-  }
-
-  async analyze(context: TestContext, messages: ProviderMessage[]): Promise<ProviderResponse> {
-    const prompt = messages.map((m) => m.content).join("\n\n");
-    const result = await this.execCodex(prompt, context.reportDir);
-    return { content: result };
-  }
 
   async *stream(context: TestContext, messages: ProviderMessage[]): AsyncGenerator<StreamChunk> {
     const prompt = messages.map((m) => m.content).join("\n\n");
@@ -97,21 +75,6 @@ export class CodexProvider extends TestingProvider {
     }
 
     yield { type: "done" };
-  }
-
-  async generateTestPlan(context: TestContext, projectInfo: string): Promise<string> {
-    const prompt = buildTestPlanPrompt(context, projectInfo);
-    return this.execCodex(prompt, context.reportDir);
-  }
-
-  async evaluateScreenshot(
-    screenshotBase64: string,
-    url: string,
-    device: "desktop" | "mobile",
-    instructions?: string,
-  ): Promise<string> {
-    const prompt = buildScreenshotEvalPrompt(url, device, instructions);
-    return this.execCodex(prompt);
   }
 
   async evaluateRegression(

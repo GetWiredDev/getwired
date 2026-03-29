@@ -3,9 +3,7 @@ import type { Readable } from "node:stream";
 import {
   TestingProvider,
   ProviderConfig,
-  ProviderAuth,
   ProviderMessage,
-  ProviderResponse,
   StreamChunk,
   TestContext,
   TestFinding,
@@ -20,20 +18,6 @@ export class AuggieProvider extends TestingProvider {
     authInstructions:
       "Requires an Augment Code subscription. Make sure `auggie` CLI is installed and authenticated. Run `auggie auth` to set up.",
   };
-
-  async validateAuth(auth: ProviderAuth): Promise<boolean> {
-    return new Promise((resolve) => {
-      const proc = spawn("auggie", ["--version"], { stdio: "pipe" });
-      proc.on("close", (code) => resolve(code === 0));
-      proc.on("error", () => resolve(false));
-    });
-  }
-
-  async analyze(context: TestContext, messages: ProviderMessage[]): Promise<ProviderResponse> {
-    const prompt = messages.map((m) => m.content).join("\n\n");
-    const result = await this.execAuggie(prompt, context.reportDir);
-    return { content: result };
-  }
 
   async *stream(context: TestContext, messages: ProviderMessage[]): AsyncGenerator<StreamChunk> {
     const prompt = messages.map((m) => m.content).join("\n\n");
@@ -67,21 +51,6 @@ export class AuggieProvider extends TestingProvider {
     }
 
     yield { type: "done" };
-  }
-
-  async generateTestPlan(context: TestContext, projectInfo: string): Promise<string> {
-    const prompt = buildTestPlanPrompt(context, projectInfo);
-    return this.execAuggie(prompt, context.reportDir);
-  }
-
-  async evaluateScreenshot(
-    screenshotBase64: string,
-    url: string,
-    device: "desktop" | "mobile",
-    instructions?: string,
-  ): Promise<string> {
-    const prompt = buildScreenshotEvalPrompt(url, device, instructions);
-    return this.execAuggie(prompt);
   }
 
   async evaluateRegression(
@@ -129,41 +98,13 @@ export class AuggieProvider extends TestingProvider {
   }
 }
 
-// Shared prompt builders used by providers that lack native vision
-function buildTestPlanPrompt(context: TestContext, projectInfo: string): string {
-  return `You are GetWired, a human-like AI testing expert. Analyze this project and create a comprehensive test plan.
-
-Project path: ${context.projectPath}
-URL: ${context.url ?? "not provided"}
-Device targets: ${context.deviceProfile}
-Test scope: ${context.scope ?? "full"}
-${context.commitId ? `Testing against commit: ${context.commitId}` : ""}
-${context.prId ? `Testing PR: #${context.prId}` : ""}
-
-Project info:
-${projectInfo}
-
-Create a detailed test plan as a JSON array of test steps covering: critical user flows, UI elements, forms, responsive checks, accessibility, console errors.`;
-}
-
-function buildScreenshotEvalPrompt(
-  url: string,
-  device: "desktop" | "mobile",
-  instructions?: string,
-): string {
-  return `You are GetWired, a human-like AI testing expert examining a screenshot.
-URL: ${url} | Device: ${device}
-${instructions ? `Instructions: ${instructions}` : ""}
-Analyze for visual bugs, broken images, text readability, responsive issues, accessibility concerns. Return findings as JSON array.`;
-}
-
 function buildRegressionPrompt(url: string, device: "desktop" | "mobile"): string {
   return `You are GetWired checking for UI regression.
 URL: ${url} | Device: ${device}
 Compare baseline vs current screenshot. Return JSON array of regression findings with: id, severity, category "ui-regression", title, description, device. Return [] if none.`;
 }
 
-export { buildTestPlanPrompt, buildScreenshotEvalPrompt, buildRegressionPrompt };
+export { buildRegressionPrompt };
 
 /**
  * Event-driven chunk queue that merges stdout + stderr and yields each

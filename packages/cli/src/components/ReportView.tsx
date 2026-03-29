@@ -3,7 +3,7 @@ import { Box, Text, useApp, useInput } from "ink";
 import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { Header } from "./Header.js";
-import { getReportDir, configExists } from "../config/settings.js";
+import { getReportDir } from "../config/settings.js";
 import type { TestReport } from "../providers/types.js";
 
 interface ReportViewProps {
