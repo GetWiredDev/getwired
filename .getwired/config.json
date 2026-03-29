@@ -1,5 +1,5 @@
 {
-  "provider": "auggie",
+  "provider": "opencode",
   "auth": {},
   "testing": {
     "deviceProfile": "desktop",
@@ -16,7 +16,8 @@
     "screenshotFullPage": true,
     "screenshotDelay": 1000,
     "diffThreshold": 0.01,
-    "maxConcurrency": 3
+    "maxConcurrency": 3,
+    "showBrowser": true
   },
   "project": {
     "name": "getwired",
