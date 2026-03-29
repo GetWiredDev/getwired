@@ -18,7 +18,7 @@ export class CodexProvider extends TestingProvider {
     displayName: "Codex",
     authType: "subscription",
     authInstructions:
-      "Requires an OpenAI subscription. Make sure `codex` CLI is installed and authenticated. Set OPENAI_API_KEY or run `codex auth`.",
+      "Requires an OpenAI subscription. Make sure `codex` CLI is installed and authenticated. Set OPENAI_API_KEY or run `codex login`.",
   };
 
   async validateAuth(auth: ProviderAuth): Promise<boolean> {
@@ -43,24 +43,50 @@ export class CodexProvider extends TestingProvider {
 
   async *stream(context: TestContext, messages: ProviderMessage[]): AsyncGenerator<StreamChunk> {
     const prompt = messages.map((m) => m.content).join("\n\n");
-    const proc = spawn("codex", ["--read-only", "-q", prompt], {
+    const proc = spawn("codex", ["exec", "-s", "read-only", "--json", prompt], {
       cwd: context.reportDir,
       stdio: ["pipe", "pipe", "pipe"],
     });
 
-    // Capture the exit promise BEFORE consuming the stream to avoid a race
-    // where the 'close' event fires before we register the listener.
     const exitPromise = new Promise<number | null>((resolve) => {
       proc.on("close", resolve);
       proc.on("error", () => resolve(null));
     });
 
-    // Event-driven reading for real-time streaming
-    const chunks = createChunkQueue(proc.stdout!, proc.stderr!);
+    // Parse JSONL events from stdout
+    let buffer = "";
+    for await (const raw of createChunkQueue(proc.stdout!, proc.stderr!)) {
+      buffer += raw;
+      const lines = buffer.split("\n");
+      buffer = lines.pop()!; // keep incomplete line in buffer
 
-    for await (const text of chunks) {
-      if (text.trim()) {
-        yield { type: "text", content: text };
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        try {
+          const event = JSON.parse(trimmed);
+          // Extract text from agent_message items
+          if (event.type === "item.completed" && event.item?.type === "agent_message" && event.item.text) {
+            yield { type: "text", content: event.item.text };
+          }
+        } catch {
+          // Non-JSON line (e.g. stderr), emit as-is if non-empty
+          if (trimmed) {
+            yield { type: "text", content: trimmed };
+          }
+        }
+      }
+    }
+
+    // Flush remaining buffer
+    if (buffer.trim()) {
+      try {
+        const event = JSON.parse(buffer.trim());
+        if (event.type === "item.completed" && event.item?.type === "agent_message" && event.item.text) {
+          yield { type: "text", content: event.item.text };
+        }
+      } catch {
+        yield { type: "text", content: buffer.trim() };
       }
     }
 
@@ -106,7 +132,7 @@ export class CodexProvider extends TestingProvider {
 
   private execCodex(prompt: string, cwd?: string): Promise<string> {
     return new Promise((resolve, reject) => {
-      const proc = spawn("codex", ["--read-only", "--quiet", prompt], {
+      const proc = spawn("codex", ["exec", "-s", "read-only", "--json", prompt], {
         cwd,
         stdio: ["pipe", "pipe", "pipe"],
       });
@@ -123,14 +149,36 @@ export class CodexProvider extends TestingProvider {
 
       proc.on("close", (code) => {
         if (code === 0) {
-          resolve(stdout.trim());
+          // Parse JSONL output, extract the last agent_message text
+          const text = extractAgentText(stdout);
+          resolve(text);
         } else {
-          reject(new Error(`Codex exited with code ${code}: ${stderr}`));
+          reject(new Error(`Codex exited with code ${code}: ${stderr || stdout}`));
         }
       });
       proc.on("error", (err) => reject(err));
     });
   }
+}
+
+/**
+ * Extract agent message text from JSONL output.
+ */
+function extractAgentText(jsonl: string): string {
+  const parts: string[] = [];
+  for (const line of jsonl.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    try {
+      const event = JSON.parse(trimmed);
+      if (event.type === "item.completed" && event.item?.type === "agent_message" && event.item.text) {
+        parts.push(event.item.text);
+      }
+    } catch {
+      // skip non-JSON lines
+    }
+  }
+  return parts.join("\n").trim();
 }
 
 async function* createChunkQueue(stdout: Readable, stderr: Readable): AsyncGenerator<string> {

@@ -40,6 +40,7 @@ export class OpenCodeProvider extends TestingProvider {
     const prompt = messages.map((m) => m.content).join("\n\n");
     const proc = spawn("opencode", buildOpenCodeArgs(prompt, context.reportDir, "json"), {
       cwd: context.reportDir,
+      env: buildOpenCodeEnv(),
       stdio: ["pipe", "pipe", "pipe"],
     });
     closeProcessInput(proc);
@@ -116,6 +117,7 @@ export class OpenCodeProvider extends TestingProvider {
     return new Promise((resolve, reject) => {
       const proc = spawn("opencode", buildOpenCodeArgs(prompt, cwd, "json"), {
         cwd,
+        env: buildOpenCodeEnv(),
         stdio: ["pipe", "pipe", "pipe"],
       });
       closeProcessInput(proc);
@@ -153,6 +155,57 @@ function buildOpenCodeArgs(prompt: string, dir?: string, format: "default" | "js
   }
   args.push(prompt);
   return args;
+}
+
+function buildOpenCodeEnv(): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    OPENCODE_PERMISSION: JSON.stringify(mergeOpenCodePermission(process.env.OPENCODE_PERMISSION)),
+  };
+}
+
+function mergeOpenCodePermission(raw: string | undefined): Record<string, unknown> {
+  const parsed = parsePermissionObject(raw);
+  return {
+    ...parsed,
+    bash: mergePermissionSection(parsed.bash, {
+      "agent-browser": "allow",
+      "agent-browser *": "allow",
+    }),
+    external_directory: mergePermissionSection(parsed.external_directory, {
+      "~/.agent-browser": "allow",
+      "~/.agent-browser/**": "allow",
+    }),
+  };
+}
+
+function parsePermissionObject(raw: string | undefined): Record<string, unknown> {
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return isRecord(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function mergePermissionSection(
+  section: unknown,
+  additions: Record<string, string>,
+): Record<string, string> {
+  if (typeof section === "string") {
+    return { "*": section, ...additions };
+  }
+  if (isRecord(section)) {
+    const normalized: Record<string, string> = {};
+    for (const [key, value] of Object.entries(section)) {
+      if (typeof value === "string") {
+        normalized[key] = value;
+      }
+    }
+    return { ...normalized, ...additions };
+  }
+  return additions;
 }
 
 function extractOpenCodeText(output: string): string {

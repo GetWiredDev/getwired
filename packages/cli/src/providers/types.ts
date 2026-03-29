@@ -84,6 +84,7 @@ export interface ProviderConfig {
   displayName: string;
   authType: "api-key" | "oauth" | "subscription" | "subprocess";
   authInstructions: string;
+  recommendedReason?: string;
 }
 
 export interface ProviderAuth {

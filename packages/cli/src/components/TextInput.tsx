@@ -32,10 +32,12 @@ export function TextInput({ label, placeholder, onSubmit, onCancel }: TextInputP
   return (
     <Box gap={1}>
       <Text color="greenBright" bold>{label}</Text>
-      <Text color="green">
-        {value || (placeholder ? <Text dimColor>{placeholder}</Text> : "")}
-      </Text>
-      <Text color="green" dimColor>█</Text>
+      <Box>
+        <Text color="green">
+          {value || (placeholder ? <Text dimColor>{placeholder}</Text> : "")}
+        </Text>
+        <Text color="green" dimColor>█</Text>
+      </Box>
     </Box>
   );
 }
