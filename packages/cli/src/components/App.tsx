@@ -533,6 +533,21 @@ export function App({ mode, initProvider }: AppProps) {
             message={settings ? `Provider: ${settings.provider}` : "Ready"}
             projectName={settings?.project.name}
           />
+          <Box paddingX={2} marginTop={1}>
+            <Text color="yellow" bold>
+              ⚠  WARNING: Do not use this tool in production environments.
+            </Text>
+          </Box>
+          <Box paddingX={2}>
+            <Text color="yellow" dimColor>
+              This tool could generate synthetic data! Never use it in production.
+            </Text>
+          </Box>
+          <Box paddingX={2}>
+            <Text color="yellow" dimColor>
+              Synthetic data in production can negatively impact user experience.
+            </Text>
+          </Box>
           <Box flexDirection="column" marginY={1} paddingX={1}>
             <Text color="green" bold>
               ┌─ Dashboard ─────────────────────────────────────
