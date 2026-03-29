@@ -30,7 +30,7 @@ export class ClaudeCodeProvider extends TestingProvider {
 
   async analyze(context: TestContext, messages: ProviderMessage[]): Promise<ProviderResponse> {
     const prompt = messages.map((m) => m.content).join("\n\n");
-    const result = await this.execClaude(prompt, context.projectPath);
+    const result = await this.execClaude(prompt, context.reportDir);
     return { content: result };
   }
 
@@ -117,7 +117,7 @@ Create a detailed test plan covering:
 
 Return the plan as a structured JSON array of test steps.`;
 
-    return this.execClaude(prompt, context.projectPath);
+    return this.execClaude(prompt, context.reportDir);
   }
 
   async evaluateScreenshot(

@@ -32,18 +32,17 @@ export class OpenCodeProvider extends TestingProvider {
 
   async analyze(context: TestContext, messages: ProviderMessage[]): Promise<ProviderResponse> {
     const prompt = messages.map((m) => m.content).join("\n\n");
-    const result = await this.execOpenCode(prompt, context.projectPath);
+    const result = await this.execOpenCode(prompt, context.reportDir);
     return { content: result };
   }
 
   async *stream(context: TestContext, messages: ProviderMessage[]): AsyncGenerator<StreamChunk> {
     const prompt = messages.map((m) => m.content).join("\n\n");
-    const proc = spawn("opencode", buildOpenCodeArgs(prompt, context.projectPath, "json"), {
-      // OpenCode resolves model/config/project context from the working tree,
-      // so run it from the repo instead of the generated report directory.
-      cwd: context.projectPath,
+    const proc = spawn("opencode", buildOpenCodeArgs(prompt, context.reportDir, "json"), {
+      cwd: context.reportDir,
       stdio: ["pipe", "pipe", "pipe"],
     });
+    closeProcessInput(proc);
 
     // Capture the exit promise BEFORE consuming the stream to avoid a race
     // where the 'close' event fires before we register the listener.
@@ -84,7 +83,7 @@ export class OpenCodeProvider extends TestingProvider {
 
   async generateTestPlan(context: TestContext, projectInfo: string): Promise<string> {
     const prompt = buildTestPlanPrompt(context, projectInfo);
-    return this.execOpenCode(prompt, context.projectPath);
+    return this.execOpenCode(prompt, context.reportDir);
   }
 
   async evaluateScreenshot(
@@ -119,6 +118,7 @@ export class OpenCodeProvider extends TestingProvider {
         cwd,
         stdio: ["pipe", "pipe", "pipe"],
       });
+      closeProcessInput(proc);
 
       let stdout = "";
       let stderr = "";
@@ -262,6 +262,14 @@ function collectOpenCodeEvent(value: unknown, texts: string[], toolCalls: ToolCa
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function closeProcessInput(proc: { stdin?: { end: () => void } | null }): void {
+  try {
+    proc.stdin?.end();
+  } catch {
+    // Ignore EPIPE/closed-stdin errors from CLIs that manage stdin themselves.
+  }
 }
 
 function stripAnsi(text: string): string {

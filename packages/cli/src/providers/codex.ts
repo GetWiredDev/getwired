@@ -37,7 +37,7 @@ export class CodexProvider extends TestingProvider {
 
   async analyze(context: TestContext, messages: ProviderMessage[]): Promise<ProviderResponse> {
     const prompt = messages.map((m) => m.content).join("\n\n");
-    const result = await this.execCodex(prompt, context.projectPath);
+    const result = await this.execCodex(prompt, context.reportDir);
     return { content: result };
   }
 
@@ -75,7 +75,7 @@ export class CodexProvider extends TestingProvider {
 
   async generateTestPlan(context: TestContext, projectInfo: string): Promise<string> {
     const prompt = buildTestPlanPrompt(context, projectInfo);
-    return this.execCodex(prompt, context.projectPath);
+    return this.execCodex(prompt, context.reportDir);
   }
 
   async evaluateScreenshot(

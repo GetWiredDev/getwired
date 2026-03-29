@@ -62,7 +62,7 @@ export default function TestModes() {
       <section className="mt-10">
         <h2 className="font-mono text-base font-bold text-emerald-300">Device Profiles</h2>
         <p className="mt-3 font-mono text-xs text-emerald-500/60 leading-relaxed">
-          Test on desktop, mobile, or both. GetWired uses real Playwright browser profiles to simulate
+          Test on desktop, mobile, or both. GetWired uses real browser profiles via agent-browser to simulate
           different devices and screen sizes.
         </p>
         <div className="mt-4 rounded border border-emerald-500/20 bg-black/80 px-4 py-3 font-mono text-sm text-green-400"

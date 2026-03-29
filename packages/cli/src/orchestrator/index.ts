@@ -423,6 +423,8 @@ You are NOT a scanner or automated tool. You are a person sitting at a computer,
 
 CRITICAL RULE: You are READ-ONLY. You must NEVER create, modify, delete, or write to any project file. Do not use file editing tools, do not create files, do not run commands that modify the filesystem. Your only job is to observe, test, and report findings. The only files GetWired writes are inside the .getwired/ folder — and that is handled by the tool itself, not by you.
 
+CRITICAL RULE: Do NOT use Playwright, Puppeteer, Selenium, or any browser automation tool directly. All browser interaction is handled by the GetWired orchestrator via agent-browser. Your role is analysis only — you receive site data, screenshots, and crawl results, and you return test plans and findings as text/JSON. Never launch a browser yourself.
+
 When you return findings, use this JSON format:
 [{ "id": "unique-id", "severity": "critical|high|medium|low|info", "category": "functional|ui-regression|accessibility|performance|security|console-error", "title": "Short description", "description": "Detailed explanation of what happened and why it matters", "steps": ["Step 1", "Step 2"], "url": "page where it happened", "device": "desktop|mobile" }]
 
@@ -907,11 +909,11 @@ async function executeScenarios(
     if (!ab) ab = await import("../browser/agent-browser.js");
     stats.browserSessions++;
 
+    const vp = settings.testing.viewports.desktop;
+    const screenshottedUrls = new Set<string>();
+
     for (const scenario of scenarios) {
       out(`\n  ── ${scenario.category}: ${scenario.name} ──\n`);
-
-      // Open a fresh page with desktop viewport
-      const vp = settings.testing.viewports.desktop;
 
       let currentUrl = context.url ?? "";
       let stepFailed = false;
@@ -920,7 +922,6 @@ async function executeScenarios(
       if (context.url) {
         await ab.open(context.url, { viewport: `${vp.width}x${vp.height}` });
         await ab.waitForLoad("domcontentloaded");
-        // Inject error catcher to capture console errors
         await ab.injectErrorCatcher();
         currentUrl = context.url;
         stats.navigations++;
@@ -1073,16 +1074,19 @@ async function executeScenarios(
         out(`      ! ${collected.console.length} console error(s)\n`);
       }
 
-      // Take a final screenshot of the state after this scenario
-      try {
-        const finalPath = join(
-          context.reportDir, "screenshots",
-          `${scenario.category}-${scenario.name.replace(/[^a-zA-Z0-9]/g, "-").slice(0, 30)}-final.png`,
-        );
-        await mkdir(join(context.reportDir, "screenshots"), { recursive: true });
-        await ab.screenshot(finalPath);
-        stats.screenshots++;
-      } catch { /* page may have navigated away */ }
+      // Take a final screenshot only if this URL hasn't been captured yet
+      if (!screenshottedUrls.has(currentUrl)) {
+        try {
+          const finalPath = join(
+            context.reportDir, "screenshots",
+            `${scenario.category}-${scenario.name.replace(/[^a-zA-Z0-9]/g, "-").slice(0, 30)}-final.png`,
+          );
+          await mkdir(join(context.reportDir, "screenshots"), { recursive: true });
+          await ab.screenshot(finalPath);
+          screenshottedUrls.add(currentUrl);
+          stats.screenshots++;
+        } catch { /* page may have navigated away */ }
+      }
 
       if (navigationOccurred) {
         stats.executedScenarios++;

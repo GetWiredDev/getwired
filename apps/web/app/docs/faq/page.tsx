@@ -7,7 +7,7 @@ const faqs = [
   },
   {
     q: "Which frameworks are supported?",
-    a: "GetWired works with any web app that runs on localhost — Next.js, React, Vue, Svelte, plain HTML, etc. It uses Playwright under the hood, so if a browser can open it, GetWired can test it.",
+    a: "GetWired works with any web app that runs on localhost — Next.js, React, Vue, Svelte, plain HTML, etc. It uses agent-browser under the hood, so if a browser can open it, GetWired can test it.",
   },
   {
     q: "Do I need an API key?",
