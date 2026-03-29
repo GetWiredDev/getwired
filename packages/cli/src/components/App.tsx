@@ -33,7 +33,8 @@ type View =
   | "reports-list"
   | "report-detail"
   | "notes"
-  | "settings";
+  | "settings"
+  | "confirm-clear";
 
 interface AppProps {
   mode: "init" | "dashboard";
@@ -384,6 +385,12 @@ export function App({ mode, initProvider }: AppProps) {
           handleSettingEdit(settingEditing, input, key);
         }
         break;
+
+      // ── Confirm clear reports ──
+      case "confirm-clear":
+        if (input === "y") { clearAllReports(); setView("dashboard"); return; }
+        if (input === "n" || key.escape || input === "q") { setConfirmClearReports(false); setView("dashboard"); return; }
+        break;
     }
   }, { isActive: inputActive });
 
@@ -406,6 +413,7 @@ export function App({ mode, initProvider }: AppProps) {
       case "reports": loadReportsList(); break;
       case "notes": loadNotes(); break;
       case "settings": setSettingEditing(null); setView("settings"); break;
+      case "clear-reports": setConfirmClearReports(true); setView("confirm-clear"); break;
     }
   }
 
@@ -1036,6 +1044,20 @@ export function App({ mode, initProvider }: AppProps) {
           </Box>
         </>
       )}
+
+      {view === "confirm-clear" && (
+        <>
+          <Header subtitle="Clear Reports" />
+          <Box flexDirection="column" paddingLeft={2}>
+            <Text color="yellow">Are you sure you want to delete all reports and screenshots?</Text>
+            <Text color="yellow">This cannot be undone.</Text>
+            <Box marginTop={1} gap={2}>
+              <Text color="green">[y] Yes, delete all</Text>
+              <Text color="red">[n] Cancel</Text>
+            </Box>
+          </Box>
+        </>
+      )}
     </Box>
   );
 }
@@ -1049,6 +1071,7 @@ const MENU_ITEMS = [
   { label: "View Reports", description: "Browse past test reports", hotkey: "v", action: "reports" },
   { label: "Project Notes", description: "View learned project context", hotkey: "n", action: "notes" },
   { label: "Settings", description: "Configure provider, devices & more", hotkey: "s", action: "settings" },
+  { label: "Clear Reports", description: "Delete all reports and screenshots", hotkey: "c", action: "clear-reports" },
 ];
 
 const SETTINGS_SECTIONS = [

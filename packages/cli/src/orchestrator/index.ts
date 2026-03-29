@@ -194,9 +194,12 @@ export async function runTestSession(
     await updateStep(steps, 2, "running", callbacks);
     out(`> ${settings.provider}: ${personaProfile.outputMessages.planning}\n\n`);
 
+    // Shared browser module — reused across crawl, scenarios, and accessibility
+    const ab = await import("../browser/agent-browser.js");
+
     let pageMap = "";
     out(`> Crawling visible links and forms...\n`);
-    pageMap = await crawlSiteMap(context.url, out, settings.testing.showBrowser);
+    pageMap = await crawlSiteMap(context.url, out, settings.testing.showBrowser, ab);
 
     const testPlan = await streamAnalyze(context, [
       { role: "system", content: buildSystemPrompt(persona, memory) },
@@ -286,7 +289,7 @@ export async function runTestSession(
     if (allScenarios.length > 0) {
       out(`\n> Executing ${allScenarios.length} scenarios in browser...\n`);
       scenarioExecution = await executeScenarios(
-        allScenarios, context, settings, out,
+        allScenarios, context, settings, out, ab,
       );
       execution.browserSessions += scenarioExecution.browserSessions;
       execution.navigations += scenarioExecution.navigations;
@@ -312,7 +315,7 @@ export async function runTestSession(
     await updateStep(steps, 6, "running", callbacks, undefined, `Using ${browserSession.label}`);
 
     out(`\n> Running real keyboard-only navigation test...\n`);
-    const a11yResult = await testAccessibility(context, settings, out);
+    const a11yResult = await testAccessibility(context, settings, out, ab);
     execution.browserSessions += a11yResult.browserSessions;
     execution.navigations += a11yResult.navigations;
     execution.screenshots += a11yResult.screenshots;
@@ -324,6 +327,9 @@ export async function runTestSession(
       { role: "user", content: buildAccessibilityPrompt(context, pageMap) },
     ]);
     recordFindings(parseFindings(a11yAiResult));
+
+    // Close shared browser session — all browser work is done
+    await ab.close();
 
     await updateStep(
       steps,
@@ -771,12 +777,12 @@ function getPersonaPromptGuidance(
 }
 
 // ─── Site crawler — discover what's on the page ────────────
-async function crawlSiteMap(url: string, out: (text: string) => void, _showBrowser: boolean): Promise<string> {
+async function crawlSiteMap(url: string, out: (text: string) => void, _showBrowser: boolean, ab?: typeof import("../browser/agent-browser.js")): Promise<string> {
   try {
-    const ab = await import("../browser/agent-browser.js");
+    if (!ab) ab = await import("../browser/agent-browser.js");
 
     await ab.open(url);
-    await ab.waitForLoad("networkidle");
+    await ab.waitForLoad("domcontentloaded");
 
     // Use page.evaluate equivalent to extract structured site info
     let siteInfo: { title?: string; headings?: any[]; links?: any[]; forms?: any[]; buttons?: any[]; inputs?: any[]; images?: any[] };
@@ -819,8 +825,6 @@ async function crawlSiteMap(url: string, out: (text: string) => void, _showBrows
       out(`  ! Could not parse page data: ${String(parseErr).slice(0, 120)}\n`);
       return "";
     }
-
-    await ab.close();
 
     if (!siteInfo || typeof siteInfo !== "object") {
       out(`  ! Unexpected page data format\n`);
@@ -888,6 +892,7 @@ async function executeScenarios(
   context: TestContext,
   settings: GetwiredSettings,
   out: (text: string) => void,
+  ab?: typeof import("../browser/agent-browser.js"),
 ): Promise<ScenarioExecutionResult> {
   const findings: TestFinding[] = [];
   const stats: ScenarioExecutionResult = {
@@ -899,7 +904,7 @@ async function executeScenarios(
   };
 
   try {
-    const ab = await import("../browser/agent-browser.js");
+    if (!ab) ab = await import("../browser/agent-browser.js");
     stats.browserSessions++;
 
     for (const scenario of scenarios) {
@@ -1084,7 +1089,6 @@ async function executeScenarios(
       }
     }
 
-    await ab.close();
   } catch (err) {
     const error = `Browser execution failed: ${String(err).slice(0, 120)}`;
     stats.error = error;
@@ -1099,6 +1103,7 @@ async function testAccessibility(
   context: TestContext,
   settings: GetwiredSettings,
   out: (text: string) => void,
+  sharedAb?: typeof import("../browser/agent-browser.js"),
 ): Promise<AccessibilityExecutionResult> {
   const findings: TestFinding[] = [];
   const result: AccessibilityExecutionResult = {
@@ -1111,11 +1116,11 @@ async function testAccessibility(
   if (!context.url) return result;
 
   try {
-    const ab = await import("../browser/agent-browser.js");
+    const ab = sharedAb ?? await import("../browser/agent-browser.js");
     const vp = settings.testing.viewports.desktop;
 
     await ab.open(context.url, { viewport: `${vp.width}x${vp.height}` });
-    await ab.waitForLoad("networkidle");
+    await ab.waitForLoad("domcontentloaded");
     result.browserSessions++;
     result.navigations++;
 
@@ -1291,7 +1296,6 @@ async function testAccessibility(
     }
 
     result.completed = true;
-    await ab.close();
   } catch (err) {
     const error = `Accessibility test failed: ${String(err).slice(0, 80)}`;
     result.error = error;

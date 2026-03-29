@@ -29,7 +29,7 @@ export async function open(
   const args = ["open", url];
   if (options?.viewport) args.push("--viewport", options.viewport);
   if (options?.userAgent) args.push("--user-agent", options.userAgent);
-  return exec(args, options?.timeout ?? DEFAULT_TIMEOUT);
+  return exec(args, options?.timeout ?? 30_000);
 }
 
 export async function back(): Promise<string> {
@@ -122,7 +122,7 @@ export async function evaluateJson<T = unknown>(script: string): Promise<T> {
 // ─── Wait ────────────────────────────────────────────────────
 
 export async function waitForLoad(strategy: string = "networkidle"): Promise<string> {
-  return exec(["wait", "--load", strategy]);
+  return exec(["wait", "--load", strategy], 30_000);
 }
 
 export async function waitForText(text: string): Promise<string> {
