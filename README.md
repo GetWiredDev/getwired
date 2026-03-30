@@ -20,14 +20,8 @@ npm install -g getwired
 ## Quick Start
 
 ```bash
-# 1. Initialize in your project
-npx getwired init --provider claude-code
-
-# 2. Start your dev server
-npm run dev
-
-# 3. Run AI-driven testing
-npx getwired test
+# Command to launch the cli after install
+getwired
 ```
 
 ## Commands
