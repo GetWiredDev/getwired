@@ -40,6 +40,7 @@ npx getwired test
 
 | Command | Description |
 | --- | --- |
+| `getwired` | Do everything from there |
 | `getwired init` | Initialize GetWired and configure your AI provider |
 | `getwired test` | Run AI-driven chaotic testing against your dev server |
 | `getwired report` | View test reports |
