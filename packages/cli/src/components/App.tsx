@@ -929,6 +929,17 @@ export function App({ mode, initProvider }: AppProps) {
                 <Box gap={1}><Text color="redBright">✘</Text><Text color="redBright">{activeReport.summary.failed} issues found</Text></Box>
                 <Box gap={1}><Text color="yellow">⚠</Text><Text color="yellow">{activeReport.summary.warnings} warnings</Text></Box>
               </Box>
+              {activeReport.steps && activeReport.steps.some((s) => s.status === "failed") && (
+                <Box marginTop={1} flexDirection="column">
+                  <Text color="redBright" bold>── Failed Steps ──────────────────────</Text>
+                  {activeReport.steps.filter((s) => s.status === "failed").map((s, i) => (
+                    <Box key={i} paddingLeft={1} flexDirection="column">
+                      <Text color="redBright">✘ {s.name}</Text>
+                      {s.details && <Text color="red" dimColor>  → {s.details}</Text>}
+                    </Box>
+                  ))}
+                </Box>
+              )}
               {activeReport.findings.length > 0 && (
                 <Box marginTop={1} flexDirection="column">
                   <Text color="greenBright" bold>── Findings ──────────────────────────</Text>

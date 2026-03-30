@@ -53,6 +53,13 @@ export interface TestExecutionSummary {
   evidenceMet: boolean;
 }
 
+export interface TestStepSummary {
+  name: string;
+  status: "pending" | "running" | "passed" | "failed" | "skipped";
+  duration?: number;
+  details?: string;
+}
+
 export interface TestReport {
   id: string;
   timestamp: string;
@@ -60,6 +67,7 @@ export interface TestReport {
   context: TestContext;
   findings: TestFinding[];
   execution?: TestExecutionSummary;
+  steps?: TestStepSummary[];
   summary: {
     totalTests: number;
     passed: number;

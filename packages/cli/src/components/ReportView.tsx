@@ -164,6 +164,17 @@ export function ReportView({ reportId }: ReportViewProps) {
               </Box>
             </Box>
 
+            {report.steps && report.steps.some((s) => s.status === "failed") && (
+              <Box marginTop={1} flexDirection="column">
+                <Text color="redBright" bold>── Failed Steps ──────────────────────</Text>
+                {report.steps.filter((s) => s.status === "failed").map((s, i) => (
+                  <Box key={i} paddingLeft={1} flexDirection="column">
+                    <Text color="redBright">✘ {s.name}</Text>
+                    {s.details && <Text color="red" dimColor>  → {s.details}</Text>}
+                  </Box>
+                ))}
+              </Box>
+            )}
             {report.findings.length > 0 && (
               <Box marginTop={1} flexDirection="column">
                 <Text color="greenBright" bold>── Findings ──────────────────────────</Text>

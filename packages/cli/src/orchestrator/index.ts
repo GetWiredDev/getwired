@@ -219,6 +219,18 @@ export async function runTestSession(
   // Save debug log on completion or error
   const saveDebugLog = async (error?: string) => {
     if (error) debugLog += `\n\n${"─".repeat(60)}\nERROR: ${error}\n`;
+
+    // Append step-by-step summary with failure details
+    debugLog += `\n${"─".repeat(60)}\nStep Summary\n${"─".repeat(60)}\n`;
+    for (const step of steps) {
+      const icon = step.status === "passed" ? "✔" : step.status === "failed" ? "✘" : step.status === "skipped" ? "–" : "?";
+      const dur = step.duration !== undefined ? ` (${step.duration}ms)` : "";
+      debugLog += `  ${icon} [${step.status}] ${step.name}${dur}\n`;
+      if (step.details) {
+        debugLog += `    → ${step.details}\n`;
+      }
+    }
+
     debugLog += `\n${"─".repeat(60)}\nCompleted: ${new Date().toISOString()}\nDuration: ${Date.now() - startTime}ms\n`;
     await writeFile(join(context.reportDir, "debug.log"), debugLog).catch(() => {});
   };
@@ -519,6 +531,22 @@ export async function runTestSession(
       callbacks.onLog(`Low browser evidence: ${execution.navigations} navigations, ${execution.screenshots} screenshots`);
     }
 
+    // Carry forward known bugs from memory that weren't re-found this session
+    const memoryBugs = parseMemoryKnownBugs(memory);
+    if (memoryBugs.length > 0) {
+      const existingTitles = new Set(findings.map((f) => f.title.toLowerCase()));
+      let carried = 0;
+      for (const bug of memoryBugs) {
+        // Skip if the AI already reported something with a similar title
+        if (existingTitles.has(bug.title.toLowerCase())) continue;
+        findings.push(bug);
+        carried++;
+      }
+      if (carried > 0) {
+        out(`> Carried forward ${carried} known bug${carried === 1 ? "" : "s"} from memory\n`);
+      }
+    }
+
     const report: TestReport = {
       id: runId,
       timestamp: new Date().toISOString(),
@@ -526,6 +554,7 @@ export async function runTestSession(
       context,
       findings,
       execution,
+      steps: steps.map((s) => ({ name: s.name, status: s.status, duration: s.duration, details: s.details })),
       summary: {
         totalTests: steps.length,
         passed: steps.filter((s) => s.status === "passed").length,
@@ -1002,8 +1031,16 @@ function buildMemoryUpdateRequest(
   report: TestReport,
   projectInfo: string,
 ): string {
-  const findingSummary = report.findings
+  // Separate new findings from memory-carried known bugs
+  const newFindings = report.findings.filter((f) => !f.id.startsWith("memory-"));
+  const carriedBugs = report.findings.filter((f) => f.id.startsWith("memory-"));
+
+  const newFindingSummary = newFindings
     .map((f) => `- [${f.severity}] ${f.title}: ${f.description.slice(0, 150)}`)
+    .join("\n");
+
+  const carriedBugSummary = carriedBugs
+    .map((f) => `- [${f.severity}] ${f.title.replace("[Known bug from memory] ", "")}`)
     .join("\n");
 
   return `Update the app memory based on this test session.
@@ -1021,8 +1058,18 @@ ${existingMemory ? `## Current Memory\n${existingMemory}\n` : "## No existing me
 ## Project Info
 ${projectInfo}
 
-## Findings This Session
-${findingSummary || "No findings."}
+## New Findings This Session
+${newFindingSummary || "No new findings."}
+
+## Known Bugs Carried Forward From Memory
+${carriedBugSummary || "None — all previously known bugs were re-found by the AI this session."}
+
+## Known Bugs Cleanup Rules
+IMPORTANT: The ## Known Bugs section in memory must be kept accurate:
+1. If a known bug was re-found as a new finding this session → KEEP it in Known Bugs.
+2. If a known bug was NOT re-found AND was NOT carried forward → it may be FIXED. Move it to ## Fixed Bugs with today's date.
+3. If a known bug was only carried forward (not independently re-found) → KEEP it, but it should be re-verified next session.
+4. NEVER let the Known Bugs list grow forever. Bugs that haven't been reproduced in 3+ sessions should be moved to Fixed Bugs.
 
 ## Required structure
 The memory MUST start with this header (fill in real values):
@@ -1039,7 +1086,7 @@ last_tested: ${new Date().toISOString().split("T")[0]}
 Then include these sections as needed:
 - **App structure**: What pages exist, main navigation, key features, routes discovered
 - **Tech stack**: Framework, notable libraries, API patterns
-- **Known bugs**: Issues found that are still present (remove if fixed in a later session)
+- **Known bugs**: Issues confirmed to still be present — remove if fixed
 - **Fixed bugs**: Issues from previous sessions that are no longer reproducible — note the date fixed
 - **Fragile areas**: Parts of the app that tend to break or behave inconsistently
 - **Forms & inputs**: What forms exist, validation behavior, edge cases observed
@@ -1689,6 +1736,44 @@ function parseMemoryUrl(memory: string): string | undefined {
   // Match "url: http..." in the frontmatter-style header or anywhere in the first section
   const match = memory.match(/^url:\s*(https?:\/\/\S+)/im);
   return match?.[1];
+}
+
+/** Parse ## Known Bugs from memory into TestFinding objects so they appear in reports. */
+function parseMemoryKnownBugs(memory: string): TestFinding[] {
+  if (!memory) return [];
+  // Extract the ## Known Bugs section (everything until next ## or end of file)
+  const sectionMatch = memory.match(/## Known Bugs\n([\s\S]*?)(?=\n## |\n*$)/);
+  if (!sectionMatch) return [];
+
+  const lines = sectionMatch[1].split("\n").filter((l) => l.trim().startsWith("- ["));
+  const validSeverities = new Set(["critical", "high", "medium", "low", "info"]);
+
+  const results: TestFinding[] = [];
+  for (const line of lines) {
+    const match = line.match(/^- \[([^\]]+)\]\s+(.+)$/);
+    if (!match) continue;
+    const rawSeverity = match[1].toLowerCase().trim();
+    const severity = (validSeverities.has(rawSeverity) ? rawSeverity : "medium") as TestFinding["severity"];
+    const description = match[2].trim();
+
+    // Infer category from description keywords
+    const lower = description.toLowerCase();
+    let category: TestFinding["category"] = "functional";
+    if (lower.includes("focus") || lower.includes("keyboard") || lower.includes("aria") || lower.includes("wcag") || lower.includes("contrast") || lower.includes("skip-to") || lower.includes("a11y") || lower.includes("screen reader") || lower.includes("alt text") || lower.includes("heading") || lower.includes("landmark")) {
+      category = "accessibility";
+    } else if (lower.includes("layout") || lower.includes("regression") || lower.includes("visual")) {
+      category = "ui-regression";
+    }
+
+    results.push({
+      id: `memory-${generateId()}`,
+      severity,
+      category,
+      title: description.split("—")[0].split("–")[0].trim(),
+      description: `[Known bug from memory] ${description}`,
+    });
+  }
+  return results;
 }
 
 export function isLocalAppUrl(candidate: string): boolean {

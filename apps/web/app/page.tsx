@@ -8,14 +8,14 @@ function ProviderLogo({ name, src, alt }: { name: string; src: string; alt: stri
       <div className="h-10 w-10 flex items-center justify-center text-emerald-400">
         <Image src={src} alt={alt} width={32} height={32} />
       </div>
-      <span className="font-mono text-xs text-emerald-500/70">{name}</span>
+      <span className="font-mono text-xs text-emerald-500">{name}</span>
     </div>
   );
 }
 
 export default function Home() {
   return (
-    <main className="flex min-h-screen flex-col items-center bg-black">
+    <main id="main-content" className="flex min-h-screen flex-col items-center bg-black">
       {/* Top banner */}
       <div
         className="w-full border-b border-emerald-500/20 py-2 text-center"
@@ -26,7 +26,7 @@ export default function Home() {
         }}
       >
         <div className="flex items-center justify-center gap-2">
-          <span className="font-mono text-xs text-emerald-500/60">
+          <span className="font-mono text-xs text-emerald-500">
             Community-driven · Built with{" "}
             <a
               href="https://pxllnk.co/intent-getwired"
@@ -67,7 +67,7 @@ export default function Home() {
         <h1 className="mt-4 font-mono text-base tracking-wide text-emerald-300/70 md:text-lg">
           The CLI that tests your app like a slightly unhinged QA tester
         </h1>
-        <p className="mt-3 max-w-xl text-center font-mono text-sm text-emerald-500/50 leading-relaxed">
+        <p className="mt-3 max-w-xl text-center font-mono text-sm text-emerald-500 leading-relaxed">
           One command. AI opens your app in a browser, clicks everything,
           types garbage into every field, rage-refreshes, finds that one XSS
           you swore you fixed, and writes you a report. No test scripts.
@@ -77,7 +77,7 @@ export default function Home() {
 
       {/* Install command */}
       <section className="w-full px-4 pb-10 flex flex-col items-center">
-        <p className="mb-4 font-mono text-sm text-emerald-400/70">
+        <p className="mb-4 font-mono text-sm text-emerald-400">
           Let the chaos begin — break your app before your users do.
         </p>
         <InstallCommand />
@@ -85,7 +85,7 @@ export default function Home() {
 
       {/* Supported AI Providers */}
       <section className="w-full border-t border-emerald-500/10 py-16 flex flex-col items-center">
-        <h2 className="mb-8 font-mono text-xs uppercase tracking-widest text-emerald-500/40">
+        <h2 className="mb-8 font-mono text-xs uppercase tracking-widest text-emerald-600">
           Supported AI Providers
         </h2>
         <div className="flex flex-wrap justify-center gap-4">
@@ -114,7 +114,7 @@ export default function Home() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
             <article className="rounded-lg border border-emerald-500/15 bg-black/40 p-6">
               <h3 className="font-mono text-sm font-bold text-emerald-300">1. Point It at Your App</h3>
-              <p className="mt-3 font-mono text-xs text-emerald-500/50 leading-relaxed">
+              <p className="mt-3 font-mono text-xs text-emerald-500 leading-relaxed">
                 Run <code className="text-emerald-400">npx getwired init</code> in your project.
                 It detects your framework and dev server. That&apos;s the entire setup.
                 No YAML. No 200-line config. Just go.
@@ -122,7 +122,7 @@ export default function Home() {
             </article>
             <article className="rounded-lg border border-emerald-500/15 bg-black/40 p-6">
               <h3 className="font-mono text-sm font-bold text-emerald-300">2. AI Goes Full Gremlin</h3>
-              <p className="mt-3 font-mono text-xs text-emerald-500/50 leading-relaxed">
+              <p className="mt-3 font-mono text-xs text-emerald-500 leading-relaxed">
                 Pick your AI (Claude Code, Auggie, Codex, or OpenCode). It opens a
                 real browser and does everything your most chaotic user would —
                 rage-clicks, submits forms with emoji, resizes to 200px, finds
@@ -131,7 +131,7 @@ export default function Home() {
             </article>
             <article className="rounded-lg border border-emerald-500/15 bg-black/40 p-6">
               <h3 className="font-mono text-sm font-bold text-emerald-300">3. Read the Damage Report</h3>
-              <p className="mt-3 font-mono text-xs text-emerald-500/50 leading-relaxed">
+              <p className="mt-3 font-mono text-xs text-emerald-500 leading-relaxed">
                 You get an HTML report with screenshots, bug descriptions, XSS
                 findings, and severity ratings. Fix the embarrassing stuff before
                 your users find it. Ship with confidence (or at least fewer nightmares).
@@ -149,18 +149,18 @@ export default function Home() {
               href="https://github.com/JaySym-ai/getwired"
               target="_blank"
               rel="noopener noreferrer"
-              className="rounded border border-emerald-500/20 px-4 py-2 font-mono text-xs text-emerald-500/60 transition hover:border-emerald-400/50 hover:bg-emerald-400 hover:text-black"
+              className="rounded border border-emerald-500/20 px-4 py-2 font-mono text-xs text-emerald-500 transition hover:border-emerald-400/50 hover:bg-emerald-400 hover:text-black"
             >
               GitHub
             </a>
             <a
               href="/docs"
-              className="rounded border border-emerald-500/20 px-4 py-2 font-mono text-xs text-emerald-500/60 transition hover:border-emerald-400/50 hover:bg-emerald-400 hover:text-black"
+              className="rounded border border-emerald-500/20 px-4 py-2 font-mono text-xs text-emerald-500 transition hover:border-emerald-400/50 hover:bg-emerald-400 hover:text-black"
             >
               Docs
             </a>
           </div>
-          <p className="font-mono text-[10px] text-emerald-500/30">
+          <p className="font-mono text-[10px] text-emerald-600">
             &copy; 2026 GetWired &mdash; Open-source AI-powered testing CLI
           </p>
         </nav>

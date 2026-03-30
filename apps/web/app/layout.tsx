@@ -148,7 +148,15 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
         />
       </head>
-      <body className="bg-black text-white antialiased">{children}</body>
+      <body className="bg-black text-white antialiased">
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:rounded focus:bg-emerald-400 focus:px-4 focus:py-2 focus:font-mono focus:text-sm focus:text-black"
+        >
+          Skip to main content
+        </a>
+        {children}
+      </body>
     </html>
   );
 }
