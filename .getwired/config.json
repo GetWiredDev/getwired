@@ -1,5 +1,5 @@
 {
-  "provider": "claude-code",
+  "provider": "opencode",
   "auth": {},
   "authentication": {
     "cookies": [],

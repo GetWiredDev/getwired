@@ -127,54 +127,61 @@ function buildOpenCodeArgs(prompt: string, dir?: string, format: "default" | "js
 }
 
 function buildOpenCodeEnv(): NodeJS.ProcessEnv {
-  return {
-    ...process.env,
-    OPENCODE_PERMISSION: JSON.stringify(mergeOpenCodePermission(process.env.OPENCODE_PERMISSION)),
-  };
-}
+  const env: NodeJS.ProcessEnv = {};
 
-function mergeOpenCodePermission(raw: string | undefined): Record<string, unknown> {
-  const parsed = parsePermissionObject(raw);
-  return {
-    ...parsed,
-    bash: mergePermissionSection(parsed.bash, {
-      "agent-browser": "allow",
-      "agent-browser *": "allow",
-    }),
-    external_directory: mergePermissionSection(parsed.external_directory, {
-      "~/.agent-browser": "allow",
-      "~/.agent-browser/**": "allow",
-    }),
-  };
-}
-
-function parsePermissionObject(raw: string | undefined): Record<string, unknown> {
-  if (!raw) return {};
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    return isRecord(parsed) ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
-function mergePermissionSection(
-  section: unknown,
-  additions: Record<string, string>,
-): Record<string, string> {
-  if (typeof section === "string") {
-    return { "*": section, ...additions };
-  }
-  if (isRecord(section)) {
-    const normalized: Record<string, string> = {};
-    for (const [key, value] of Object.entries(section)) {
-      if (typeof value === "string") {
-        normalized[key] = value;
-      }
+  for (const key of [
+    "PATH",
+    "HOME",
+    "USER",
+    "LOGNAME",
+    "SHELL",
+    "TERM",
+    "TMPDIR",
+    "TMP",
+    "TEMP",
+    "LANG",
+    "LC_ALL",
+    "COLORTERM",
+    "NO_COLOR",
+    "FORCE_COLOR",
+    "XDG_CONFIG_HOME",
+    "XDG_CACHE_HOME",
+    "XDG_DATA_HOME",
+  ]) {
+    const value = process.env[key];
+    if (value !== undefined) {
+      env[key] = value;
     }
-    return { ...normalized, ...additions };
   }
-  return additions;
+
+  for (const [key, value] of Object.entries(process.env)) {
+    if (value === undefined) continue;
+    if (
+      key.startsWith("OPENCODE_")
+      || key.startsWith("OPENAI_")
+      || key.startsWith("ANTHROPIC_")
+      || key.startsWith("AZURE_OPENAI_")
+      || key.startsWith("GOOGLE_")
+      || key.startsWith("GEMINI_")
+      || key.startsWith("OPENROUTER_")
+      || key.startsWith("AWS_")
+      || key.startsWith("BEDROCK_")
+      || key.startsWith("MISTRAL_")
+      || key.startsWith("OLLAMA_")
+    ) {
+      env[key] = value;
+    }
+  }
+
+  env.OPENCODE_PERMISSION = JSON.stringify({
+    edit: "deny",
+    bash: "deny",
+    webfetch: "deny",
+    doom_loop: "deny",
+    external_directory: "deny",
+  });
+
+  return env;
 }
 
 function extractOpenCodeText(output: string): string {

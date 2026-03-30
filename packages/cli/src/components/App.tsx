@@ -1,14 +1,14 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Box, Text, useApp, useInput } from "ink";
 import { Header } from "./Header.js";
 import { StatusBar } from "./StatusBar.js";
 import { MenuItem } from "./MenuItem.js";
 import { TextInput } from "./TextInput.js";
 import { TestProgress } from "./TestProgress.js";
-import { initConfig, configExists, loadConfig, saveConfig, getReportDir, getNotesDir } from "../config/settings.js";
+import { initConfig, configExists, loadConfig, saveConfig, getReportDir, getNotesDir, getMemoryPath } from "../config/settings.js";
 import { getRegressionContext } from "../git/context.js";
 import { getAvailableProviders } from "../providers/registry.js";
-import { runTestSession } from "../orchestrator/index.js";
+import { getLocalAppUrlError, isLocalAppUrl, runTestSession } from "../orchestrator/index.js";
 import { ProviderStream } from "./ProviderStream.js";
 import { readFile, readdir, rm, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -67,6 +67,29 @@ export function App({ mode, initProvider }: AppProps) {
   const [testReport, setTestReport] = useState<TestReport | null>(null);
   const [testError, setTestError] = useState<string | null>(null);
   const [providerOutput, setProviderOutput] = useState("");
+
+  // ─── Smooth streaming buffer ───────────────────────
+  // Accumulate provider output in a ref and flush to state on a fixed interval
+  // so the UI updates smoothly instead of in large bursts.
+  const providerOutputRef = useRef("");
+  const streamFlushTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const appendProviderOutput = useCallback((text: string) => {
+    providerOutputRef.current += text;
+  }, []);
+
+  useEffect(() => {
+    streamFlushTimer.current = setInterval(() => {
+      const buffered = providerOutputRef.current;
+      setProviderOutput((prev) => {
+        if (buffered.length > prev.length) return buffered;
+        return prev;
+      });
+    }, 80);
+    return () => {
+      if (streamFlushTimer.current) clearInterval(streamFlushTimer.current);
+    };
+  }, []);
   const [testModeIndex, setTestModeIndex] = useState(0);
   const [selectedTestPersona, setSelectedTestPersona] = useState<TestPersona>("standard");
   const [activeTestPersona, setActiveTestPersona] = useState<TestPersona>("standard");
@@ -128,6 +151,7 @@ export function App({ mode, initProvider }: AppProps) {
     setTestLogs([]);
     setTestReport(null);
     setTestError(null);
+    providerOutputRef.current = "";
     setProviderOutput("");
   }
 
@@ -168,7 +192,7 @@ export function App({ mode, initProvider }: AppProps) {
         onStepUpdate: (s) => setTestSteps([...s]),
         onFinding: (f) => setTestFindings((prev) => [...prev, f]),
         onLog: (msg) => setTestLogs((prev) => [...prev, msg].slice(-10)),
-        onProviderOutput: (text) => setProviderOutput((prev) => prev + text),
+        onProviderOutput: appendProviderOutput,
       },
     )
       .then((r) => setTestReport(r))
@@ -189,19 +213,37 @@ export function App({ mode, initProvider }: AppProps) {
         onStepUpdate: (s) => setTestSteps([...s]),
         onFinding: (f) => setTestFindings((prev) => [...prev, f]),
         onLog: (msg) => setTestLogs((prev) => [...prev, msg].slice(-10)),
-        onProviderOutput: (text) => setProviderOutput((prev) => prev + text),
+        onProviderOutput: appendProviderOutput,
       },
     )
       .then((r) => setTestReport(r))
       .catch((err) => setTestError(String(err)));
   }
 
+  function getConfiguredLocalUrl(): string {
+    const savedUrl = settings?.project.url?.trim();
+    return savedUrl && isLocalAppUrl(savedUrl) ? savedUrl : "";
+  }
+
   // ─── Load reports ───────────────────────────────────
   async function loadReportsList() {
     try {
       const dir = getReportDir(process.cwd());
-      const files = await readdir(dir);
-      setReportFiles(files.filter((f) => f.endsWith(".json")).sort().reverse());
+      const entries = await readdir(dir, { withFileTypes: true });
+      const jsonFiles: string[] = [];
+      for (const entry of entries) {
+        if (entry.isDirectory()) {
+          // Reports are stored as <dir>/<dir>.json inside subdirectories
+          const jsonPath = join(dir, entry.name, `${entry.name}.json`);
+          if (existsSync(jsonPath)) {
+            jsonFiles.push(entry.name);
+          }
+        } else if (entry.name.endsWith(".json")) {
+          // Also support flat JSON files directly in reports dir
+          jsonFiles.push(entry.name);
+        }
+      }
+      setReportFiles(jsonFiles.sort().reverse());
       setReportIndex(0);
       setActiveReport(null);
     } catch {
@@ -212,7 +254,11 @@ export function App({ mode, initProvider }: AppProps) {
 
   async function loadReportDetail(filename: string) {
     const dir = getReportDir(process.cwd());
-    const raw = await readFile(join(dir, filename), "utf-8");
+    // Try subdirectory format first: reports/<id>/<id>.json
+    const subDirPath = join(dir, filename, `${filename}.json`);
+    const flatPath = join(dir, filename.endsWith(".json") ? filename : `${filename}.json`);
+    const filePath = existsSync(subDirPath) ? subDirPath : flatPath;
+    const raw = await readFile(filePath, "utf-8");
     setActiveReport(JSON.parse(raw));
     setView("report-detail");
   }
@@ -226,25 +272,20 @@ export function App({ mode, initProvider }: AppProps) {
     setConfirmClearReports(false);
   }
 
-  // ─── Load notes ─────────────────────────────────────
+  // ─── Load notes (memory.md) ─────────────────────────
   async function loadNotes() {
     try {
-      const dir = getNotesDir(process.cwd());
-      if (!existsSync(dir)) { setNoteFiles([]); setView("notes"); return; }
-      const files = await readdir(dir);
-      setNoteFiles(files.filter((f) => f.endsWith(".md") || f.endsWith(".txt")));
-      setNoteIndex(0);
-      setNoteContent(null);
+      const memoryPath = getMemoryPath(process.cwd());
+      if (existsSync(memoryPath)) {
+        const content = await readFile(memoryPath, "utf-8");
+        setNoteContent(content);
+      } else {
+        setNoteContent(null);
+      }
     } catch {
-      setNoteFiles([]);
+      setNoteContent(null);
     }
     setView("notes");
-  }
-
-  async function loadNoteContent(filename: string) {
-    const dir = getNotesDir(process.cwd());
-    const content = await readFile(join(dir, filename), "utf-8");
-    setNoteContent(content);
   }
 
   // Disable input during test runs to avoid unnecessary re-renders
@@ -316,7 +357,7 @@ export function App({ mode, initProvider }: AppProps) {
           if (!selectedTarget) break;
           setRegressionError(null);
           if (selectedTarget.kind === "commit" && selectedTarget.value) {
-            startTest(settings?.project.url ?? "", selectedTarget.value, undefined, "regression-running");
+            startTest(getConfiguredLocalUrl(), selectedTarget.value, undefined, "regression-running");
           } else {
             setRegressionInputMode(selectedTarget.kind === "pr" ? "pr" : "custom");
             setView("regression-custom-input");
@@ -352,19 +393,10 @@ export function App({ mode, initProvider }: AppProps) {
         if (input === "q") exit();
         break;
 
-      // ── Notes ──
+      // ── Notes (Memory) ──
       case "notes":
-        if (key.escape || input === "b") {
-          if (noteContent) { setNoteContent(null); }
-          else { setView("dashboard"); }
-          return;
-        }
+        if (key.escape || input === "b") { setView("dashboard"); return; }
         if (input === "q") { exit(); return; }
-        if (!noteContent) {
-          if (key.upArrow) setNoteIndex((p) => Math.max(0, p - 1));
-          if (key.downArrow) setNoteIndex((p) => Math.min(noteFiles.length - 1, p + 1));
-          if (key.return && noteFiles[noteIndex]) loadNoteContent(noteFiles[noteIndex]);
-        }
         break;
 
       // ── Settings ──
@@ -644,18 +676,28 @@ export function App({ mode, initProvider }: AppProps) {
         <>
           <Header subtitle={getTestPersonaLabel(selectedTestPersona)} />
           <Box flexDirection="column" paddingX={2} gap={1}>
-            {settings?.project.url && (
-              <Text color="green" dimColor>Target: {settings.project.url}</Text>
+            {getConfiguredLocalUrl() && (
+              <Text color="green" dimColor>Target: {getConfiguredLocalUrl()}</Text>
             )}
             <Text color="greenBright" bold>{getTestPersonaPrompt(selectedTestPersona)}</Text>
             <Text color="green" dimColor>{getTestPersonaDescription(selectedTestPersona)}</Text>
             <TextInput
               label="Scope ▸ "
-              placeholder="e.g. login flow, checkout, forms, or a URL (auto-detects dev server)"
+              placeholder="e.g. login flow, checkout, forms, or http://localhost:3000"
               onSubmit={(scope) => {
-                const isUrl = scope.startsWith("http");
-                const url = isUrl ? scope : (settings?.project.url ?? "");
-                const testScope = isUrl ? undefined : (scope || undefined);
+                const trimmed = scope.trim();
+                const isUrl = trimmed.startsWith("http://") || trimmed.startsWith("https://");
+                if (isUrl && !isLocalAppUrl(trimmed)) {
+                  resetTestState();
+                  setTestUrl(trimmed);
+                  setActiveTestPersona(selectedTestPersona);
+                  setTestPhase("error");
+                  setTestError(getLocalAppUrlError("The test URL"));
+                  setView("test-running");
+                  return;
+                }
+                const url = isUrl ? trimmed : getConfiguredLocalUrl();
+                const testScope = isUrl ? undefined : (trimmed || undefined);
                 startScopedTest(url, testScope, selectedTestPersona);
               }}
               onCancel={() => setView("test-mode")}
@@ -732,9 +774,9 @@ export function App({ mode, initProvider }: AppProps) {
                 setRegressionError(null);
                 const parsed = parseCustomRegressionInput(trimmed, regressionInputMode);
                 if (parsed.prId) {
-                  startTest(settings?.project.url ?? "", undefined, parsed.prId, "regression-running");
+                  startTest(getConfiguredLocalUrl(), undefined, parsed.prId, "regression-running");
                 } else {
-                  startTest(settings?.project.url ?? "", parsed.commitId, undefined, "regression-running");
+                  startTest(getConfiguredLocalUrl(), parsed.commitId, undefined, "regression-running");
                 }
               }}
               onCancel={() => setView("regression-input")}
@@ -909,47 +951,41 @@ export function App({ mode, initProvider }: AppProps) {
         </>
       )}
 
-      {/* ── Notes ── */}
+      {/* ── Notes (Memory) ── */}
       {view === "notes" && (
         <>
-          <Header subtitle="Project Notes" />
+          <Header subtitle="Project Memory" />
           <Box flexDirection="column" paddingX={2}>
-            {!noteContent ? (
-              <>
-                <Text color="greenBright" bold>┌─ Notes ───────────────────────────────────────</Text>
-                {noteFiles.length === 0 && (
-                  <Box flexDirection="column" paddingY={1}>
-                    <Text color="green" dimColor>  No notes yet.</Text>
-                    <Text color="green" dimColor>  GetWired will automatically take notes about your project</Text>
-                    <Text color="green" dimColor>  as it tests — pages, functionality, quirks, etc.</Text>
-                  </Box>
-                )}
-                {noteFiles.map((f, i) => (
-                  <Box key={f} gap={1}>
-                    <Text color={i === noteIndex ? "greenBright" : "green"}>
-                      {i === noteIndex ? " ▸ " : "   "}
-                    </Text>
-                    <Text color={i === noteIndex ? "greenBright" : "green"} bold={i === noteIndex}>
-                      {f}
-                    </Text>
-                  </Box>
-                ))}
-                <Text color="greenBright" bold>└──────────────────────────────────────────────────</Text>
-                <Box marginTop={1} gap={2}>
-                  {noteFiles.length > 0 && <Text color="green" dimColor>[Enter] Read</Text>}
-                  <Text color="green" dimColor>[b] Back</Text>
-                </Box>
-              </>
-            ) : (
+            {noteContent ? (
               <>
                 <Box borderStyle="single" borderColor="green" flexDirection="column" paddingX={2} paddingY={1}>
-                  <Text color="greenBright" bold>{noteFiles[noteIndex]}</Text>
+                  <Text color="greenBright" bold>memory.md</Text>
                   <Box marginTop={1}>
                     <Text color="green">{noteContent}</Text>
                   </Box>
                 </Box>
+                <Box marginTop={1} flexDirection="column">
+                  <Box gap={2}>
+                    <Text color="green" dimColor>[b] Back</Text>
+                  </Box>
+                  <Box marginTop={1}>
+                    <Text color="green" dimColor>
+                      ✎ To edit, open .getwired/memory.md in your editor.
+                    </Text>
+                  </Box>
+                </Box>
+              </>
+            ) : (
+              <>
+                <Text color="greenBright" bold>┌─ Project Memory ──────────────────────────────</Text>
+                <Box flexDirection="column" paddingY={1}>
+                  <Text color="green" dimColor>  No memory yet.</Text>
+                  <Text color="green" dimColor>  GetWired will automatically learn about your project</Text>
+                  <Text color="green" dimColor>  as it tests — pages, structure, known bugs, etc.</Text>
+                </Box>
+                <Text color="greenBright" bold>└──────────────────────────────────────────────────</Text>
                 <Box marginTop={1} gap={2}>
-                  <Text color="green" dimColor>[b] Back to list</Text>
+                  <Text color="green" dimColor>[b] Back</Text>
                 </Box>
               </>
             )}
@@ -1099,7 +1135,7 @@ const MENU_ITEMS = [
   { label: "Run Tests", description: "Tell me what to test — I'll try to break it", hotkey: "t", action: "test" },
   { label: "Regression Check", description: "Test against a commit or PR", hotkey: "r", action: "regression" },
   { label: "View Reports", description: "Browse past test reports", hotkey: "v", action: "reports" },
-  { label: "Project Notes", description: "View learned project context", hotkey: "n", action: "notes" },
+  { label: "Project Memory", description: "View learned project context", hotkey: "n", action: "notes" },
   { label: "Settings", description: "Configure provider, devices & more", hotkey: "s", action: "settings" },
   { label: "Clear Reports", description: "Delete all reports and screenshots", hotkey: "c", action: "clear-reports" },
 ];

@@ -65,20 +65,21 @@ export default function Home() {
   ╚═════╝ ╚══════╝   ╚═╝    ╚══╝╚══╝ ╚═╝╚═╝  ╚═╝╚══════╝╚═════╝`}
         </pre>
         <h1 className="mt-4 font-mono text-base tracking-wide text-emerald-300/70 md:text-lg">
-          Human-Like AI Testing CLI
+          The CLI that tests your app like a slightly unhinged QA tester
         </h1>
-        <p className="mt-2 max-w-lg text-center font-mono text-sm text-emerald-500/50">
-          Break your app before your users do. Harness AI to test like a real
-          (chaotic) human — find bugs, XSS vulnerabilities, broken layouts, and
-          edge cases automatically.
-        </p>
-        <p className="mt-4 font-mono text-[11px] text-emerald-500/30">
-          Community-driven &middot; Built with Intent from Augment Code
+        <p className="mt-3 max-w-xl text-center font-mono text-sm text-emerald-500/50 leading-relaxed">
+          One command. AI opens your app in a browser, clicks everything,
+          types garbage into every field, rage-refreshes, finds that one XSS
+          you swore you fixed, and writes you a report. No test scripts.
+          No config files. Just chaos with a purpose.
         </p>
       </header>
 
       {/* Install command */}
       <section className="w-full px-4 pb-10 flex flex-col items-center">
+        <p className="mb-4 font-mono text-sm text-emerald-400/70">
+          Let the chaos begin — break your app before your users do.
+        </p>
         <InstallCommand />
       </section>
 
@@ -88,8 +89,8 @@ export default function Home() {
           Supported AI Providers
         </h2>
         <div className="flex flex-wrap justify-center gap-4">
-          <ProviderLogo name="Claude Code" src="/logos/claude-code.svg" alt="Claude Code by Anthropic — AI testing provider" />
           <ProviderLogo name="Auggie" src="/logos/auggie.svg" alt="Auggie by Augment Code — AI testing provider" />
+          <ProviderLogo name="Claude Code" src="/logos/claude-code.svg" alt="Claude Code by Anthropic — AI testing provider" />
           <ProviderLogo name="Codex" src="/logos/codex.svg" alt="Codex by OpenAI — AI testing provider" />
           <ProviderLogo name="OpenCode" src="/logos/opencode.svg" alt="OpenCode — AI testing provider" />
         </div>
@@ -108,30 +109,32 @@ export default function Home() {
       <section className="w-full border-t border-emerald-500/10 py-16 px-4">
         <div className="max-w-4xl mx-auto">
           <h2 className="font-mono text-lg font-bold text-emerald-400 tracking-wider text-center mb-10">
-            How GetWired Works
+            How It Works (It&apos;s Stupidly Simple)
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
             <article className="rounded-lg border border-emerald-500/15 bg-black/40 p-6">
-              <h3 className="font-mono text-sm font-bold text-emerald-300">1. Install &amp; Init</h3>
+              <h3 className="font-mono text-sm font-bold text-emerald-300">1. Point It at Your App</h3>
               <p className="mt-3 font-mono text-xs text-emerald-500/50 leading-relaxed">
                 Run <code className="text-emerald-400">npx getwired init</code> in your project.
-                GetWired detects your framework, dev server, and routes automatically.
+                It detects your framework and dev server. That&apos;s the entire setup.
+                No YAML. No 200-line config. Just go.
               </p>
             </article>
             <article className="rounded-lg border border-emerald-500/15 bg-black/40 p-6">
-              <h3 className="font-mono text-sm font-bold text-emerald-300">2. AI Tests Like a Human</h3>
+              <h3 className="font-mono text-sm font-bold text-emerald-300">2. AI Goes Full Gremlin</h3>
               <p className="mt-3 font-mono text-xs text-emerald-500/50 leading-relaxed">
-                Your chosen AI provider (Claude Code, Auggie, Codex, or OpenCode)
-                explores your app like a chaotic real user — clicking, typing garbage,
-                rage-clicking, and testing edge cases.
+                Pick your AI (Claude Code, Auggie, Codex, or OpenCode). It opens a
+                real browser and does everything your most chaotic user would —
+                rage-clicks, submits forms with emoji, resizes to 200px, finds
+                your unlocked admin page.
               </p>
             </article>
             <article className="rounded-lg border border-emerald-500/15 bg-black/40 p-6">
-              <h3 className="font-mono text-sm font-bold text-emerald-300">3. Get a Report</h3>
+              <h3 className="font-mono text-sm font-bold text-emerald-300">3. Read the Damage Report</h3>
               <p className="mt-3 font-mono text-xs text-emerald-500/50 leading-relaxed">
-                GetWired generates detailed HTML reports with screenshots, bug
-                descriptions, XSS findings, and regression comparisons saved to
-                your project.
+                You get an HTML report with screenshots, bug descriptions, XSS
+                findings, and severity ratings. Fix the embarrassing stuff before
+                your users find it. Ship with confidence (or at least fewer nightmares).
               </p>
             </article>
           </div>

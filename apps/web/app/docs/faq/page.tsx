@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 const faqs = [
   {
     q: "Does GetWired need my app to be deployed?",
-    a: "No. GetWired tests against your local dev server (localhost). Just run your dev server and GetWired will auto-detect it.",
+    a: "No. GetWired only tests your local dev server on localhost or another loopback address. Start it from your project folder, run your dev server, and GetWired will auto-detect it. Remote online sites are not supported.",
   },
   {
     q: "Which frameworks are supported?",

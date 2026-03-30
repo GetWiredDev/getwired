@@ -22,7 +22,7 @@ export class ClaudeCodeProvider extends TestingProvider {
     const prompt = messages.map((m) => m.content).join("\n\n");
     const proc = spawn(
       "claude",
-      ["--print", "--verbose", "--output-format", "stream-json", "-p", prompt],
+      ["--print", "--verbose", "--output-format", "stream-json", "--permission-mode", "plan", "--tools", "", "-p", prompt],
       { cwd: context.reportDir, stdio: ["pipe", "pipe", "pipe"] },
     );
 
@@ -110,7 +110,7 @@ Return a JSON array of findings. Return [] if no regressions detected.`;
 
   private execClaude(prompt: string, cwd?: string): Promise<string> {
     return new Promise((resolve, reject) => {
-      const proc = spawn("claude", ["--print", prompt], {
+      const proc = spawn("claude", ["--print", "--permission-mode", "plan", "--tools", "", prompt], {
         cwd,
         stdio: ["pipe", "pipe", "pipe"],
       });

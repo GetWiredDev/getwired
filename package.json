@@ -11,7 +11,8 @@
     "lint": "turbo lint",
     "dev:web": "turbo dev --filter=@getwired/web",
     "dev:cli": "turbo dev --filter=./packages/cli",
-    "build:cli": "turbo build --filter=./packages/cli"
+    "build:cli": "turbo build --filter=./packages/cli",
+    "test:cli-regression": "npm run regression:smoke --workspace ./packages/cli"
   },
   "devDependencies": {
     "turbo": "^2.4.0"

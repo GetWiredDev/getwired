@@ -4,20 +4,20 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "AI Providers",
   description:
-    "Configure AI providers for GetWired testing: Claude Code by Anthropic, Auggie by Augment Code, Codex by OpenAI, and OpenCode. Compare features and setup instructions.",
+    "Configure AI providers for GetWired testing: Auggie by Augment Code, Claude Code by Anthropic, Codex by OpenAI, and OpenCode. Compare features and setup instructions.",
   alternates: { canonical: "https://getwired.dev/docs/providers" },
 };
 
 const providers = [
   {
-    name: "Claude Code",
-    id: "claude-code",
-    desc: "Anthropic's Claude Code CLI. Uses Claude as the AI backbone to reason about your app, generate test scenarios, and analyze results. Excellent at understanding complex UIs and writing detailed bug reports.",
-  },
-  {
     name: "Auggie",
     id: "auggie",
     desc: "Augment Code's Auggie agent. Fast, context-aware testing powered by Auggie's deep codebase understanding. Great for projects already using Augment Code for development.",
+  },
+  {
+    name: "Claude Code",
+    id: "claude-code",
+    desc: "Anthropic's Claude Code CLI. Uses Claude as the AI backbone to reason about your app, generate test scenarios, and analyze results. Excellent at understanding complex UIs and writing detailed bug reports.",
   },
   {
     name: "Codex",

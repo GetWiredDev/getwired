@@ -4,12 +4,12 @@ import React from "react";
 import { App } from "./components/App.js";
 import { RunCommand } from "./components/RunCommand.js";
 import { ReportView } from "./components/ReportView.js";
-import { checkForUpdates } from "./update.js";
+import { checkForUpdates, getLocalVersion } from "./update.js";
 
 program
   .name("getwired")
   .description("Human-like AI testing CLI")
-  .version("0.0.1");
+  .version(getLocalVersion());
 
 program
   .command("init")
@@ -23,7 +23,7 @@ program
 program
   .command("test")
   .description("Run tests — tell me what to break")
-  .option("-u, --url <url>", "URL to test (uses config URL if not provided)")
+  .option("-u, --url <url>", "Local app URL to test (localhost/loopback only; uses local config URL if not provided)")
   .option("-c, --commit <id>", "Test against a specific commit for regression")
   .option("-p, --pr <id>", "Test against a specific pull request")
   .option("--scope <scope>", "Scope of testing (e.g. auth, checkout, navigation)")

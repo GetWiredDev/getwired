@@ -20,9 +20,13 @@ npm install -g getwired
 ## Quick Start
 
 ```bash
-# Command to launch the cli after install
-getwired
+cd /path/to/your-app
+npm run dev
+getwired init
+getwired test
 ```
+
+Run GetWired from your project folder directly. It only tests local apps on `localhost` or other loopback addresses, and it will not target remote `.com` or other online websites.
 
 ## Commands
 
@@ -30,13 +34,13 @@ getwired
 | --- | --- |
 | `getwired` | Do everything from there |
 | `getwired init` | Initialize GetWired and configure your AI provider |
-| `getwired test` | Run AI-driven chaotic testing against your dev server |
+| `getwired test` | Run AI-driven chaotic testing against your local dev server |
 | `getwired report` | View test reports |
 
 ### Test Flags
 
 ```
--u, --url <url>          URL to test (auto-detects localhost by default)
+-u, --url <url>          Local URL to test (optional; localhost/loopback only)
 -c, --commit <id>        Test against a specific commit for regression
 -p, --pr <id>            Test against a specific pull request
 --scope <scope>          Scope of testing (e.g. auth, checkout)
@@ -60,7 +64,7 @@ npx getwired init --provider auggie
 
 ## How It Works
 
-1. **Init** — GetWired scans your project, detects your framework and dev server
+1. **Init** — Run GetWired from your project folder so it can scan that project, detect your framework, and find the dev server
 2. **Test** — Your chosen AI explores your app like a chaotic human user
 3. **Report** — Detailed HTML reports with screenshots and bug descriptions saved to `.getwired/reports/`
 

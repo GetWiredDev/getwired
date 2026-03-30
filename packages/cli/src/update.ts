@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-function getLocalVersion(): string {
+export function getLocalVersion(): string {
   const pkg = JSON.parse(
     readFileSync(join(__dirname, "..", "package.json"), "utf-8")
   );
@@ -54,6 +54,10 @@ function installUpdate(packageName: string, latest: string): boolean {
  * Designed to fail silently — never blocks the user.
  */
 export function checkForUpdates(): void {
+  if (process.env.GETWIRED_DISABLE_UPDATE_CHECK === "1") {
+    return;
+  }
+
   const packageName = "getwired";
   const current = getLocalVersion();
   const latest = getLatestVersion(packageName);
