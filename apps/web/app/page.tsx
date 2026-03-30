@@ -26,11 +26,25 @@ export default function Home() {
         }}
       >
         <div className="flex items-center justify-center gap-2">
-          <span className="rounded border border-emerald-400/40 bg-black/40 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-emerald-400">
-            Alpha
-          </span>
           <span className="font-mono text-xs text-emerald-500/60">
-            Early preview — features may change
+            Community-driven · Built with{" "}
+            <a
+              href="https://pxllnk.co/intent-getwired"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-emerald-400 hover:text-emerald-300 underline underline-offset-2 transition"
+            >
+              Intent
+            </a>
+            {" "}by{" "}
+            <a
+              href="https://www.reddit.com/r/AugmentCodeAI/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-emerald-400 hover:text-emerald-300 underline underline-offset-2 transition"
+            >
+              Augment Code Community
+            </a>
           </span>
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
         </div>
