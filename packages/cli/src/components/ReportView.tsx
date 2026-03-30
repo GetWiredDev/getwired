@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { Box, Text, useApp, useInput } from "ink";
 import { readFile, readdir } from "node:fs/promises";
-import { join } from "node:path";
+import { existsSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { Header } from "./Header.js";
 import { getReportDir } from "../config/settings.js";
 import type { TestReport } from "../providers/types.js";
@@ -31,9 +32,19 @@ export function ReportView({ reportId }: ReportViewProps) {
   async function loadReports() {
     try {
       const dir = getReportDir(process.cwd());
-      const files = await readdir(dir);
-      const jsonFiles = files.filter((f) => f.endsWith(".json")).sort().reverse();
-      setReports(jsonFiles);
+      const entries = await readdir(dir, { withFileTypes: true });
+      const jsonFiles: string[] = [];
+      for (const entry of entries) {
+        if (entry.isDirectory()) {
+          const jsonPath = join(dir, entry.name, `${entry.name}.json`);
+          if (existsSync(jsonPath)) {
+            jsonFiles.push(entry.name);
+          }
+        } else if (entry.name.endsWith(".json")) {
+          jsonFiles.push(entry.name);
+        }
+      }
+      setReports(jsonFiles.sort().reverse());
       if (jsonFiles.length > 0 && !reportId) {
         // Auto-load latest
       }
@@ -45,7 +56,19 @@ export function ReportView({ reportId }: ReportViewProps) {
   async function loadReport(id: string) {
     try {
       const dir = getReportDir(process.cwd());
-      const filePath = id.endsWith(".json") ? join(dir, id) : join(dir, `${id}.json`);
+      const resolvedDir = resolve(dir);
+      // Try subdirectory format first: reports/<id>/<id>.json
+      const cleanId = id.replace(/\.json$/, "");
+      const subDirPath = resolve(dir, cleanId, `${cleanId}.json`);
+      const flatPath = resolve(dir, id.endsWith(".json") ? id : `${id}.json`);
+
+      // Prevent path traversal — resolved path must stay within reports dir
+      if (!subDirPath.startsWith(resolvedDir + "/") || !flatPath.startsWith(resolvedDir + "/")) {
+        setError(`Invalid report ID: ${id}`);
+        return;
+      }
+
+      const filePath = existsSync(subDirPath) ? subDirPath : flatPath;
       const raw = await readFile(filePath, "utf-8");
       setReport(JSON.parse(raw));
       setView("detail");
@@ -149,6 +172,17 @@ export function ReportView({ reportId }: ReportViewProps) {
               </Box>
             </Box>
 
+            {report.steps && report.steps.some((s) => s.status === "failed") && (
+              <Box marginTop={1} flexDirection="column">
+                <Text color="redBright" bold>── Failed Steps ──────────────────────</Text>
+                {report.steps.filter((s) => s.status === "failed").map((s, i) => (
+                  <Box key={i} paddingLeft={1} flexDirection="column">
+                    <Text color="redBright">✘ {s.name}</Text>
+                    {s.details && <Text color="red" dimColor>  → {s.details}</Text>}
+                  </Box>
+                ))}
+              </Box>
+            )}
             {report.findings.length > 0 && (
               <Box marginTop={1} flexDirection="column">
                 <Text color="greenBright" bold>── Findings ──────────────────────────</Text>

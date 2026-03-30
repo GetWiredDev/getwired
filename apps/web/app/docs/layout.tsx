@@ -26,9 +26,9 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
           <span className="font-mono text-sm font-bold text-emerald-400 tracking-widest">
             GETWIRED
           </span>
-          <span className="font-mono text-[10px] text-emerald-500/40 block mt-1">DOCS</span>
+          <span className="font-mono text-[10px] text-emerald-600 block mt-1">DOCS</span>
         </Link>
-        <nav className="flex flex-col gap-1">
+        <nav className="flex flex-col gap-1" aria-label="Documentation">
           {NAV_ITEMS.map((item) => {
             const isActive = pathname === item.href;
             return (
@@ -38,7 +38,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
                 className={`rounded px-3 py-2 font-mono text-xs transition ${
                   isActive
                     ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30"
-                    : "text-emerald-500/50 hover:text-emerald-400 hover:bg-emerald-500/5 border border-transparent"
+                    : "text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/5 border border-transparent"
                 }`}
               >
                 [{item.label}]
@@ -51,7 +51,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
             href="https://github.com/JaySym-ai/getwired"
             target="_blank"
             rel="noopener noreferrer"
-            className="font-mono text-[10px] text-emerald-500/30 hover:text-emerald-400 transition"
+            className="font-mono text-[10px] text-emerald-600 hover:text-emerald-400 transition"
           >
             GitHub &rarr;
           </a>
@@ -59,7 +59,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 overflow-y-auto">
+      <main id="main-content" className="flex-1 overflow-y-auto">
         {/* Top banner */}
         <div
           className="w-full border-b border-emerald-500/20 py-2 text-center"
@@ -69,7 +69,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
           }}
         >
           <div className="flex items-center justify-center gap-2">
-            <span className="font-mono text-xs text-emerald-500/60">
+            <span className="font-mono text-xs text-emerald-500">
               Community-driven · Built with{" "}
               <a
                 href="https://pxllnk.co/intent-getwired"
@@ -89,7 +89,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
                 Augment Code Community
               </a>
             </span>
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" aria-hidden="true" />
           </div>
         </div>
 
@@ -99,7 +99,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
 
         {/* Footer */}
         <footer className="border-t border-emerald-500/10 py-6 text-center">
-          <p className="font-mono text-[10px] text-emerald-500/30">
+          <p className="font-mono text-[10px] text-emerald-600">
             &copy; 2026 GetWired &middot;{" "}
             <a
               href="https://github.com/JaySym-ai/getwired"

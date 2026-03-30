@@ -21,11 +21,13 @@ export default function GettingStarted() {
       <section className="mt-10">
         <h2 className="font-mono text-base font-bold text-emerald-300">Installation</h2>
         <p className="mt-3 font-mono text-xs text-emerald-500/60 leading-relaxed">
-          GetWired runs directly via npx — no global install needed. Just run it from your project folder:
+          GetWired runs directly via npx. Launch it from your project folder so it can inspect that app and create
+          its <code className="text-emerald-400">.getwired/</code> directory in the right place:
         </p>
         <div className="mt-4 rounded-lg border border-emerald-500/20 bg-black/80 p-4 font-mono text-sm text-green-400"
           style={{ boxShadow: "0 0 20px rgba(16, 185, 129, 0.06)" }}>
-          <span className="text-emerald-600">$</span> npx getwired
+          <div><span className="text-emerald-600">$</span> cd your-project</div>
+          <div className="mt-1"><span className="text-emerald-600">$</span> npx getwired</div>
         </div>
         <p className="mt-3 font-mono text-xs text-emerald-500/40">
           Or install globally if you prefer:
@@ -46,7 +48,7 @@ export default function GettingStarted() {
       <section className="mt-10">
         <h2 className="font-mono text-base font-bold text-emerald-300">Initialize your project</h2>
         <p className="mt-3 font-mono text-xs text-emerald-500/60 leading-relaxed">
-          On first run, GetWired will scan your project to detect your framework, dev server, and routes.
+          On first run, GetWired scans the current project folder to detect your framework, local dev server, and routes.
           You can also run init explicitly to choose your AI provider:
         </p>
         <div className="mt-4 rounded-lg border border-emerald-500/20 bg-black/80 p-4 font-mono text-sm text-green-400"
@@ -61,7 +63,8 @@ export default function GettingStarted() {
       <section className="mt-10">
         <h2 className="font-mono text-base font-bold text-emerald-300">Run your first test</h2>
         <p className="mt-3 font-mono text-xs text-emerald-500/60 leading-relaxed">
-          Make sure your dev server is running, then tell GetWired to break things:
+          Make sure your local dev server is running, then tell GetWired to break things. Remote `.com` sites and other
+          online URLs are not supported:
         </p>
         <div className="mt-4 rounded-lg border border-emerald-500/20 bg-black/80 p-4 font-mono text-sm text-green-400"
           style={{ boxShadow: "0 0 20px rgba(16, 185, 129, 0.06)" }}>

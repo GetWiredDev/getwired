@@ -22,12 +22,12 @@ export default function Configuration() {
         <h2 className="font-mono text-base font-bold text-emerald-300">Config Directory</h2>
         <p className="mt-3 font-mono text-xs text-emerald-500/60 leading-relaxed">
           After running <code className="text-emerald-400">getwired init</code>, a <code className="text-emerald-400">.getwired/</code> directory
-          is created in your project root:
+          is created in your project root. Run all GetWired commands from that same project folder:
         </p>
         <div className="mt-4 rounded-lg border border-emerald-500/15 bg-black/40 p-5 font-mono text-xs text-emerald-500/60">
           <div className="text-emerald-400 mb-2">.getwired/</div>
           <div className="ml-4 flex flex-col gap-0.5">
-            <div>config.json <span className="text-emerald-500/30">— provider, URL, device settings</span></div>
+            <div>config.json <span className="text-emerald-500/30">— provider, local URL, device settings</span></div>
             <div>notes.md <span className="text-emerald-500/30">— testing notes for the AI</span></div>
             <div>baselines/ <span className="text-emerald-500/30">— baseline screenshots for regression</span></div>
             <div>reports/ <span className="text-emerald-500/30">— test reports</span></div>
@@ -39,6 +39,10 @@ export default function Configuration() {
         <h2 className="font-mono text-base font-bold text-emerald-300">Settings</h2>
         <p className="mt-3 font-mono text-xs text-emerald-500/60 leading-relaxed">
           Configure GetWired via the interactive dashboard or by editing <code className="text-emerald-400">.getwired/config.json</code> directly:
+        </p>
+        <p className="mt-3 font-mono text-xs text-emerald-500/40 leading-relaxed">
+          If you set a URL manually, it must point to your local app on <code className="text-emerald-400">localhost</code> or
+          another loopback address. Remote deployed websites are rejected.
         </p>
         <div className="mt-4 rounded-lg border border-emerald-500/15 bg-black/40 p-5 font-mono text-xs">
           <pre className="text-emerald-500/60 leading-relaxed whitespace-pre">{`{

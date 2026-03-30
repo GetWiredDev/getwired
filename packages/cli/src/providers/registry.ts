@@ -11,8 +11,8 @@ function register(name: string, factory: () => TestingProvider) {
   providers.set(name, factory);
 }
 
-register("claude-code", () => new ClaudeCodeProvider());
 register("auggie", () => new AuggieProvider());
+register("claude-code", () => new ClaudeCodeProvider());
 register("codex", () => new CodexProvider());
 register("opencode", () => new OpenCodeProvider());
 

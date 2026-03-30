@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 const commands = [
   {
     name: "getwired init",
-    desc: "Initialize GetWired in your project. Scans your codebase, detects framework and dev server, and creates the .getwired/ config directory.",
+    desc: "Initialize GetWired in your project root. It scans the current project folder, detects your framework and local dev server, and creates the .getwired/ config directory.",
     flags: [
       { flag: "--provider <provider>", desc: "AI provider to use (claude-code, auggie, codex)" },
     ],
@@ -19,16 +19,16 @@ const commands = [
   },
   {
     name: "getwired test",
-    desc: "Run AI-driven testing against your local dev server. The AI explores your app like a chaotic human user, looking for bugs, broken layouts, XSS vulnerabilities, and edge cases.",
+    desc: "Run AI-driven testing against your local dev server. GetWired only targets localhost or loopback URLs from the current project folder, not remote `.com` or other online sites.",
     flags: [
-      { flag: "-u, --url <url>", desc: "URL to test (auto-detects localhost if not provided)" },
+      { flag: "-u, --url <url>", desc: "Optional local URL to test (must be localhost or loopback)" },
       { flag: "-c, --commit <id>", desc: "Test against a specific commit for regression" },
       { flag: "-p, --pr <id>", desc: "Test against a specific pull request" },
       { flag: "--scope <scope>", desc: "Scope of testing (e.g. auth, checkout, navigation)" },
       { flag: "-d, --device <profile>", desc: "Device profile: desktop, mobile, or both (default: both)" },
       { flag: "--provider <provider>", desc: "Override AI provider for this run" },
     ],
-    example: "$ getwired test --scope auth --device mobile",
+    example: "$ getwired test --url http://localhost:3000 --scope auth --device mobile",
   },
   {
     name: "getwired report",

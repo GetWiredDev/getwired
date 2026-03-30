@@ -29,7 +29,7 @@ const colorFor = (type: string) => {
     case "cmd":
       return "text-green-400";
     case "info":
-      return "text-emerald-300/90";
+      return "text-emerald-300";
     case "action":
       return "text-gray-400";
     case "warn":
@@ -43,8 +43,23 @@ const colorFor = (type: string) => {
 
 export function TerminalDemo() {
   const [visibleLines, setVisibleLines] = useState<number>(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
 
   useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setPrefersReducedMotion(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setPrefersReducedMotion(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+
+  useEffect(() => {
+    if (prefersReducedMotion) {
+      setVisibleLines(demoLines.length);
+      return;
+    }
+    if (isPaused) return;
     if (visibleLines < demoLines.length) {
       const delay =
         demoLines[visibleLines]?.type === "cmd"
@@ -58,7 +73,10 @@ export function TerminalDemo() {
       const timer = setTimeout(() => setVisibleLines(0), 4000);
       return () => clearTimeout(timer);
     }
-  }, [visibleLines]);
+  }, [visibleLines, isPaused, prefersReducedMotion]);
+
+  const linesToShow = prefersReducedMotion ? demoLines : demoLines.slice(0, visibleLines);
+  const lastLine = linesToShow.length > 0 ? linesToShow[linesToShow.length - 1] : null;
 
   return (
     <div
@@ -76,7 +94,16 @@ export function TerminalDemo() {
           <div className="h-3 w-3 rounded-full bg-yellow-500/70" />
           <div className="h-3 w-3 rounded-full bg-green-500/70" />
         </div>
-        <span className="font-mono text-xs text-emerald-400/60">getwired — ~/my-project</span>
+        <span className="font-mono text-xs text-emerald-500">getwired — ~/my-project</span>
+        {!prefersReducedMotion && (
+          <button
+            onClick={() => setIsPaused((p) => !p)}
+            className="ml-auto font-mono text-xs text-emerald-500 hover:text-emerald-400 transition rounded px-2 py-1 border border-emerald-500/20 hover:border-emerald-400/40"
+            aria-label={isPaused ? "Resume terminal demo animation" : "Pause terminal demo animation"}
+          >
+            {isPaused ? "▶ Resume" : "⏸ Pause"}
+          </button>
+        )}
       </div>
       {/* Terminal body */}
       <div
@@ -84,17 +111,18 @@ export function TerminalDemo() {
         style={{ height: 340 }}
       >
         <div className="absolute bottom-6 left-6 right-6">
-          {demoLines.slice(0, visibleLines).map((line, i) => (
-            <div
-              key={i}
-              className={`${colorFor(line.type)} ${i === visibleLines - 1 ? "animate-pulse" : ""}`}
-            >
+          {linesToShow.map((line, i) => (
+            <div key={i} className={colorFor(line.type)}>
               {line.text}
             </div>
           ))}
-          {visibleLines < demoLines.length && (
+          {!prefersReducedMotion && visibleLines < demoLines.length && (
             <span className="inline-block w-2 h-4 bg-emerald-400 animate-pulse mt-1" aria-hidden="true" />
           )}
+        </div>
+        {/* Screen reader announcement */}
+        <div className="sr-only" aria-live="polite" aria-atomic="false">
+          {lastLine ? lastLine.text : ""}
         </div>
       </div>
     </div>

@@ -1,5 +1,5 @@
 {
-  "provider": "claude-code",
+  "provider": "codex",
   "auth": {},
   "authentication": {
     "cookies": [],
