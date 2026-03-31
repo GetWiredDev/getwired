@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 
-const command = "npm install -g getwired";
+const defaultCommand = "npm install -g getwired";
 
-export function InstallCommand() {
+export function InstallCommand({ command = defaultCommand }: { command?: string } = {}) {
   const [copied, setCopied] = useState(false);
 
   function handleCopy() {
