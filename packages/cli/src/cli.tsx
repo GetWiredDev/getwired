@@ -1,6 +1,6 @@
 import { program } from "commander";
 import { render } from "ink";
-import React from "react";
+
 import { App } from "./components/App.js";
 import { RunCommand } from "./components/RunCommand.js";
 import { ReportView } from "./components/ReportView.js";

@@ -6,12 +6,12 @@ import { PostHogPageView } from "./posthog-pageview";
 const SITE_URL = "https://getwired.dev";
 const SITE_NAME = "GetWired";
 const SITE_DESCRIPTION =
-  "GetWired is an open-source AI-powered testing CLI that simulates chaotic human behavior to find bugs, broken layouts, XSS vulnerabilities, and edge cases in your web apps before your users do.";
+  "GetWired is an open-source AI-powered testing CLI that simulates chaotic human behavior to find bugs, broken layouts, XSS vulnerabilities, and edge cases in your web apps and native Android & iOS apps before your users do.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "GetWired — AI-Powered Human-Like Testing CLI for Web Apps",
+    default: "GetWired — AI-Powered Human-Like Testing CLI for Web & Mobile Apps",
     template: "%s | GetWired",
   },
   description: SITE_DESCRIPTION,
@@ -21,6 +21,10 @@ export const metadata: Metadata = {
     "CLI testing tool",
     "regression testing",
     "web app testing",
+    "mobile app testing",
+    "Android testing",
+    "iOS testing",
+    "native app testing",
     "bug detection",
     "XSS testing",
     "chaos testing",
@@ -56,12 +60,12 @@ export const metadata: Metadata = {
     locale: "en_US",
     url: SITE_URL,
     siteName: SITE_NAME,
-    title: "GetWired — AI-Powered Human-Like Testing CLI for Web Apps",
+    title: "GetWired — AI-Powered Human-Like Testing CLI for Web & Mobile Apps",
     description: SITE_DESCRIPTION,
   },
   twitter: {
     card: "summary_large_image",
-    title: "GetWired — AI-Powered Human-Like Testing CLI for Web Apps",
+    title: "GetWired — AI-Powered Human-Like Testing CLI for Web & Mobile Apps",
     description: SITE_DESCRIPTION,
   },
   alternates: {
@@ -103,7 +107,7 @@ const faqJsonLd = {
       name: "What is GetWired?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "GetWired is an open-source AI-powered CLI tool that tests your web applications by simulating chaotic human-like behavior. It finds bugs, broken layouts, XSS vulnerabilities, and edge cases before your users do.",
+        text: "GetWired is an open-source AI-powered CLI tool that tests your web applications and native Android & iOS apps by simulating chaotic human-like behavior. It finds bugs, broken layouts, XSS vulnerabilities, and edge cases before your users do.",
       },
     },
     {
@@ -119,7 +123,7 @@ const faqJsonLd = {
       name: "Does GetWired work with any web framework?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Yes. GetWired works with any web app running on localhost — Next.js, React, Vue, Svelte, plain HTML, and more. If a browser can open it, GetWired can test it.",
+        text: "Yes. GetWired works with any web app running on localhost — Next.js, React, Vue, Svelte, plain HTML, and more. It also supports native Android apps via emulator and native iOS apps via Simulator.",
       },
     },
     {

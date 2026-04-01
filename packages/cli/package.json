@@ -23,6 +23,7 @@
   "scripts": {
     "dev": "tsx watch src/cli.tsx",
     "build": "tsup",
+    "prepare": "npm run build",
     "lint": "tsc --noEmit",
     "regression:smoke": "npm run build && node ./scripts/regression-smoke.mjs"
   },

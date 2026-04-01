@@ -9,13 +9,26 @@
 
 ---
 
-Break your app before your users do. GetWired uses AI to test your web app like a chaotic real human — clicking random links, typing garbage, rage-clicking buttons, and hunting for bugs, XSS vulnerabilities, and broken layouts.
+Break your app before your users do. GetWired uses AI to test your web apps and native Android & iOS apps like a chaotic real human — clicking random links, typing garbage, rage-clicking buttons, and hunting for bugs, XSS vulnerabilities, and broken layouts.
 
 ## Install
 
 ```bash
 npm install -g getwired
 ```
+
+### Collaborator Local CLI Setup
+
+If you want to run the local CLI build from this repo instead of a previously installed global package:
+
+```bash
+npm uninstall -g getwired
+cd packages/cli
+npm link
+getwired 
+```
+
+This installs and uses the local version of the GetWired CLI from `packages/cli`.
 
 ## Quick Start
 
@@ -26,7 +39,7 @@ getwired init
 getwired test
 ```
 
-Run GetWired from your project folder directly. It only tests local apps on `localhost` or other loopback addresses, and it will not target remote `.com` or other online websites.
+Run GetWired from your project folder directly. For web apps, it tests local apps on `localhost` or other loopback addresses and will not target remote `.com` or other online websites. For native apps, it connects to Android emulators and iOS simulators to test your mobile builds.
 
 ## Commands
 
@@ -62,15 +75,23 @@ Run GetWired from your project folder directly. It only tests local apps on `loc
 npx getwired init --provider auggie
 ```
 
+## Supported Platforms
+
+| Platform | Description |
+| --- | --- |
+| **Web Apps** | Any web app on localhost — Next.js, React, Vue, Svelte, plain HTML, and more |
+| **Native Android** | Android apps running in an emulator via ADB |
+| **Native iOS** | iOS apps running in the Simulator via AXe |
+
 ## How It Works
 
-1. **Init** — Run GetWired from your project folder so it can scan that project, detect your framework, and find the dev server
-2. **Test** — Your chosen AI explores your app like a chaotic human user
+1. **Init** — Run GetWired from your project folder so it can scan that project, detect your framework (or native mobile platform), and find the dev server or emulator
+2. **Test** — Your chosen AI explores your app like a chaotic human user — in a browser for web, or on an emulator/simulator for native
 3. **Report** — Detailed HTML reports with screenshots and bug descriptions saved to `.getwired/reports/`
 
 ## Thanks
 
-Special thanks to [AXe](https://github.com/cameroncooke/AXe) for native iOS Simulator interaction, and the Android `adb` toolchain for powering native emulator testing in GetWired.
+Special thanks to [AXe](https://github.com/cameroncooke/AXe) for native iOS Simulator interaction, to [Appium](https://github.com/appium/appium) for the open-source tooling we use in parts of our native testing flow, and to the Android `adb` toolchain for powering native emulator testing in GetWired.
 
 ## License
 

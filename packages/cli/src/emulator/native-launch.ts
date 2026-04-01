@@ -8,6 +8,7 @@ const SEARCH_FILE_NAMES = new Set([
   "app.json",
   "app.config.json",
   "package.json",
+  "config.xml",
   "capacitor.config.json",
   "capacitor.config.ts",
   "capacitor.config.js",
@@ -55,6 +56,7 @@ export interface ResolvedIosLaunchTarget {
   workingDirectory?: string;
   source: "memory" | "config" | "project";
   detectedFrom: string;
+  automation: NativeAutomationProfile;
 }
 
 export interface ResolvedAndroidLaunchTarget {
@@ -66,9 +68,17 @@ export interface ResolvedAndroidLaunchTarget {
   workingDirectory?: string;
   source: "memory" | "config" | "project";
   detectedFrom: string;
+  automation: NativeAutomationProfile;
 }
 
 export type ResolvedNativeLaunchTarget = ResolvedIosLaunchTarget | ResolvedAndroidLaunchTarget;
+
+export interface NativeAutomationProfile {
+  mode: "native" | "hybrid";
+  framework: "capacitor" | "cordova" | "ionic-capacitor" | "ionic-cordova" | "react-native" | "expo" | "unknown";
+  detectedFrom: string;
+  reason: string;
+}
 
 interface DetectedCandidate {
   value: string;
@@ -244,6 +254,7 @@ export async function resolveNativeLaunchTarget(
   platform: NativePlatform,
   options?: { skipCache?: boolean },
 ): Promise<ResolvedNativeLaunchTarget> {
+  const automation = await detectProjectAutomationProfile(projectPath, platform);
   const memoryHints = parseNativeLaunchMemory(memory);
   const configHints = settings.native ?? { ios: {}, android: {} };
   const cachedAndroidPackageName = normalizeAndroidPackageName(memoryHints.android.packageName);
@@ -259,6 +270,7 @@ export async function resolveNativeLaunchTarget(
         workingDirectory: memoryHints.ios.workingDirectory ?? configHints.ios.workingDirectory,
         source: "memory",
         detectedFrom: memoryHints.ios.source ?? "memory",
+        automation,
       };
     }
 
@@ -272,6 +284,7 @@ export async function resolveNativeLaunchTarget(
         workingDirectory: memoryHints.android.workingDirectory ?? configHints.android.workingDirectory,
         source: "memory",
         detectedFrom: memoryHints.android.source ?? "memory",
+        automation,
       };
     }
 
@@ -284,6 +297,7 @@ export async function resolveNativeLaunchTarget(
         workingDirectory: configHints.ios.workingDirectory,
         source: "config",
         detectedFrom: configHints.ios.source ?? ".getwired/config.json",
+        automation,
       };
     }
 
@@ -297,6 +311,7 @@ export async function resolveNativeLaunchTarget(
         workingDirectory: configHints.android.workingDirectory,
         source: "config",
         detectedFrom: configHints.android.source ?? ".getwired/config.json",
+        automation,
       };
     }
   }
@@ -323,6 +338,7 @@ export async function resolveNativeLaunchTarget(
       workingDirectory: detected.workingDirectory ?? memoryHints.ios.workingDirectory ?? configHints.ios.workingDirectory,
       source: "project",
       detectedFrom: detected.detectedFrom,
+      automation,
     };
   }
 
@@ -336,6 +352,7 @@ export async function resolveNativeLaunchTarget(
     workingDirectory: androidDetected.workingDirectory ?? memoryHints.android.workingDirectory ?? configHints.android.workingDirectory,
     source: "project",
     detectedFrom: androidDetected.detectedFrom,
+    automation,
   };
 }
 
@@ -343,12 +360,63 @@ export function describeNativeLaunchTarget(target: ResolvedNativeLaunchTarget): 
   const commandSummary = target.launchCommand
     ? `; command ${target.launchCommand}${target.workingDirectory ? ` @ ${target.workingDirectory}` : ""}`
     : "";
+  const automationSummary = target.automation.mode === "hybrid"
+    ? `; hybrid ${target.automation.framework}`
+    : "";
   if (target.platform === "ios") {
-    return `bundle ${target.bundleId} (${target.detectedFrom}${commandSummary})`;
+    return `bundle ${target.bundleId} (${target.detectedFrom}${commandSummary}${automationSummary})`;
   }
   return target.activity
-    ? `package ${target.packageName} / ${target.activity} (${target.detectedFrom}${commandSummary})`
-    : `package ${target.packageName} (${target.detectedFrom}${commandSummary})`;
+    ? `package ${target.packageName} / ${target.activity} (${target.detectedFrom}${commandSummary}${automationSummary})`
+    : `package ${target.packageName} (${target.detectedFrom}${commandSummary}${automationSummary})`;
+}
+
+export async function detectProjectAutomationProfile(
+  projectPath: string,
+  _platform: NativePlatform,
+): Promise<NativeAutomationProfile> {
+  const files = await collectCandidateFiles(projectPath, projectPath, 0, 4);
+  const packageJsonProfiles = await Promise.all(
+    files
+      .filter((filePath) => filePath.endsWith("package.json"))
+      .map((filePath) => detectAutomationProfileFromPackageJson(projectPath, filePath)),
+  );
+
+  const bestProfile = packageJsonProfiles
+    .filter((profile): profile is (NativeAutomationProfile & { confidence: number }) => Boolean(profile))
+    .sort((a, b) => b.confidence - a.confidence)[0];
+
+  if (bestProfile) {
+    const { confidence: _confidence, ...profile } = bestProfile;
+    return profile;
+  }
+
+  const capacitorConfig = files.find((filePath) => filePath.includes("capacitor.config."));
+  if (capacitorConfig) {
+    return {
+      mode: "hybrid",
+      framework: "capacitor",
+      detectedFrom: normalizeSlashes(relative(projectPath, capacitorConfig)),
+      reason: "Found a Capacitor config file, so the app likely renders its UI inside a native WebView shell.",
+    };
+  }
+
+  const cordovaConfig = files.find((filePath) => filePath.endsWith("config.xml"));
+  if (cordovaConfig) {
+    return {
+      mode: "hybrid",
+      framework: "cordova",
+      detectedFrom: normalizeSlashes(relative(projectPath, cordovaConfig)),
+      reason: "Found a Cordova config.xml, so the app likely renders its UI inside a native WebView shell.",
+    };
+  }
+
+  return {
+    mode: "native",
+    framework: "unknown",
+    detectedFrom: "project scan",
+    reason: "No hybrid mobile framework markers were detected, so native accessibility automation remains the default.",
+  };
 }
 
 async function inspectProjectNativeLaunchTarget(
@@ -483,8 +551,10 @@ async function detectAndroidPackageFromGradle(projectPath: string, filePath: str
   if (!content) return undefined;
   const applicationId = content.match(/applicationId\s*[= ]\s*["']([^"']+)["']/);
   if (!applicationId) return undefined;
+  const packageName = applicationId[1].trim();
   return {
-    value: applicationId[1].trim(),
+    value: packageName,
+    activity: await detectAndroidLauncherActivityFromSiblingManifest(filePath, packageName),
     detectedFrom: normalizeSlashes(relative(projectPath, filePath)),
     confidence: 100,
   };
@@ -493,13 +563,53 @@ async function detectAndroidPackageFromGradle(projectPath: string, filePath: str
 async function detectAndroidPackageFromManifest(projectPath: string, filePath: string): Promise<DetectedAndroidCandidate | undefined> {
   const content = await safeReadText(filePath);
   if (!content) return undefined;
-  const pkg = content.match(/\spackage="([^"]+)"/);
-  if (!pkg) return undefined;
+  const manifestPackage = extractAndroidManifestPackage(content);
+  if (!manifestPackage) return undefined;
   return {
-    value: pkg[1].trim(),
+    value: manifestPackage,
+    activity: extractAndroidLauncherActivity(content, manifestPackage),
     detectedFrom: normalizeSlashes(relative(projectPath, filePath)),
     confidence: 80,
   };
+}
+
+async function detectAndroidLauncherActivityFromSiblingManifest(
+  gradleFilePath: string,
+  packageName: string,
+): Promise<string | undefined> {
+  const manifestPath = join(dirname(gradleFilePath), "src", "main", "AndroidManifest.xml");
+  if (!existsSync(manifestPath)) return undefined;
+  const content = await safeReadText(manifestPath);
+  if (!content) return undefined;
+  return extractAndroidLauncherActivity(content, extractAndroidManifestPackage(content) ?? packageName);
+}
+
+function extractAndroidManifestPackage(content: string): string | undefined {
+  return content.match(/\spackage="([^"]+)"/)?.[1]?.trim();
+}
+
+function extractAndroidLauncherActivity(content: string, basePackage?: string): string | undefined {
+  const componentBlocks = Array.from(content.matchAll(/<(activity|activity-alias)\b[\s\S]*?<\/\1>/g));
+  for (const match of componentBlocks) {
+    const block = match[0];
+    const isLauncher = /android\.intent\.action\.MAIN/.test(block) && /android\.intent\.category\.LAUNCHER/.test(block);
+    if (!isLauncher) continue;
+
+    const name = block.match(/android:name="([^"]+)"/)?.[1]?.trim();
+    if (!name) continue;
+    return normalizeAndroidActivityName(name, basePackage);
+  }
+  return undefined;
+}
+
+function normalizeAndroidActivityName(activityName: string, basePackage?: string): string {
+  if (activityName.startsWith(".")) {
+    return basePackage ? `${basePackage}${activityName}` : activityName;
+  }
+  if (!activityName.includes(".")) {
+    return basePackage ? `${basePackage}.${activityName}` : activityName;
+  }
+  return activityName;
 }
 
 async function detectIosBundleFromPbxproj(projectPath: string, filePath: string): Promise<DetectedCandidate | undefined> {
@@ -587,6 +697,70 @@ async function detectLaunchFromPackageJson(
       launchCommand: platform === "ios" ? "npx react-native run-ios" : "npx react-native run-android",
       workingDirectory: toWorkingDirectory(projectPath, filePath),
       confidence: 45,
+    };
+  }
+
+  return undefined;
+}
+
+async function detectAutomationProfileFromPackageJson(
+  projectPath: string,
+  filePath: string,
+): Promise<(NativeAutomationProfile & { confidence: number }) | undefined> {
+  const parsed = await safeReadJson(filePath);
+  if (!parsed || typeof parsed !== "object") return undefined;
+
+  const dependencies = {
+    ...(typeof parsed.dependencies === "object" && parsed.dependencies ? parsed.dependencies : {}),
+    ...(typeof parsed.devDependencies === "object" && parsed.devDependencies ? parsed.devDependencies : {}),
+  } as Record<string, string>;
+
+  const hasIonic = Boolean(
+    dependencies["@ionic/core"]
+    || dependencies["@ionic/react"]
+    || dependencies["@ionic/angular"]
+    || dependencies["@ionic/vue"],
+  );
+  const hasCapacitor = Boolean(dependencies["@capacitor/core"]);
+  const hasCordova = Object.keys(dependencies).some((key) => key === "cordova" || key.startsWith("cordova-"));
+
+  if (hasCapacitor) {
+    return {
+      mode: "hybrid",
+      framework: hasIonic ? "ionic-capacitor" : "capacitor",
+      detectedFrom: normalizeSlashes(relative(projectPath, filePath)),
+      reason: "Detected Capacitor dependencies, so the app is expected to run web UI inside a native WebView shell.",
+      confidence: hasIonic ? 110 : 100,
+    };
+  }
+
+  if (hasCordova) {
+    return {
+      mode: "hybrid",
+      framework: hasIonic ? "ionic-cordova" : "cordova",
+      detectedFrom: normalizeSlashes(relative(projectPath, filePath)),
+      reason: "Detected Cordova dependencies, so the app is expected to run web UI inside a native WebView shell.",
+      confidence: hasIonic ? 95 : 90,
+    };
+  }
+
+  if (dependencies.expo) {
+    return {
+      mode: "native",
+      framework: "expo",
+      detectedFrom: normalizeSlashes(relative(projectPath, filePath)),
+      reason: "Detected Expo dependencies without a hybrid WebView framework marker.",
+      confidence: 40,
+    };
+  }
+
+  if (dependencies["react-native"]) {
+    return {
+      mode: "native",
+      framework: "react-native",
+      detectedFrom: normalizeSlashes(relative(projectPath, filePath)),
+      reason: "Detected React Native dependencies without a hybrid WebView framework marker.",
+      confidence: 35,
     };
   }
 

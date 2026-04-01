@@ -140,6 +140,10 @@ export function getMemoryPath(projectPath: string): string {
   return join(getConfigDir(projectPath), "memory.md");
 }
 
+export function getHybridScenarioCachePath(projectPath: string): string {
+  return join(getConfigDir(projectPath), "hybrid-scenarios.json");
+}
+
 export async function initConfig(projectPath: string, projectName: string): Promise<GetwiredSettings> {
   const configDir = getConfigDir(projectPath);
   await mkdir(configDir, { recursive: true });

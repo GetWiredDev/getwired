@@ -1,5 +1,5 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { existsSync } from "node:fs";
+
 import { join, basename } from "node:path";
 import { createCanvas, loadImage } from "@napi-rs/canvas";
 

@@ -2,7 +2,10 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { PrerequisiteCheck, PrerequisiteIssue, EmulatorDevice } from "./types.js";
 import { getAndroidSdkInfo } from "./android-sdk.js";
+import { hasHomebrew } from "./ensure-dependencies.js";
 import { hasAxe } from "./ios-simulator.js";
+import { detectProjectAutomationProfile } from "./native-launch.js";
+import { hasAppiumCommand, hasRequiredAppiumDriver } from "./appium.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -17,16 +20,25 @@ async function execSafe(cmd: string, args: string[], timeout = 10_000): Promise<
 
 // ─── Android Prerequisite Check ───────────────────────────────
 
-export async function checkAndroidPrerequisites(): Promise<PrerequisiteCheck> {
+export async function checkAndroidPrerequisites(projectPath = process.cwd()): Promise<PrerequisiteCheck> {
   const issues: PrerequisiteIssue[] = [];
   const devices: EmulatorDevice[] = [];
   const androidSdk = getAndroidSdkInfo();
+  const brewAvailable = await hasHomebrew();
+  const automation = await detectProjectAutomationProfile(projectPath, "android");
+
+  issues.push({
+    check: `Detected project automation: ${formatAutomationLabel(automation)}`,
+    passed: true,
+    hint: automation.reason,
+  });
 
   // Check ADB
   const hasAdb = !!androidSdk.adbPath;
   issues.push({
     check: "ADB (Android Debug Bridge)",
     passed: hasAdb,
+    autoFixable: !hasAdb && brewAvailable,
     hint: hasAdb ? undefined : "Install Android Studio or set up Android SDK",
   });
 
@@ -42,6 +54,7 @@ export async function checkAndroidPrerequisites(): Promise<PrerequisiteCheck> {
   issues.push({
     check: androidSdk.sdkSource ? `Android SDK root (${androidSdk.sdkSource})` : "Android SDK root",
     passed: !!androidSdk.sdkRoot,
+    autoFixable: !androidSdk.sdkRoot && brewAvailable,
     hint: androidSdk.sdkRoot ? undefined : "Install Android Studio or set ANDROID_HOME to your SDK path",
   });
 
@@ -78,6 +91,24 @@ export async function checkAndroidPrerequisites(): Promise<PrerequisiteCheck> {
     }
   }
 
+  if (automation.mode === "hybrid") {
+    const appiumInstalled = await hasAppiumCommand();
+    issues.push({
+      check: "Appium CLI (hybrid WebView automation)",
+      passed: appiumInstalled,
+      autoFixable: !appiumInstalled,
+      hint: appiumInstalled ? undefined : "Install Appium: npm install -g appium",
+    });
+
+    const hasDriver = appiumInstalled && await hasRequiredAppiumDriver("android");
+    issues.push({
+      check: "Appium UiAutomator2 driver",
+      passed: hasDriver,
+      autoFixable: !hasDriver,
+      hint: hasDriver ? undefined : "Install driver: appium driver install uiautomator2",
+    });
+  }
+
   const available = issues.every((i) => i.passed);
   const canProceed = issues.every((i) => i.passed || i.autoFixable);
   return { platform: "android", available, canProceed, issues, devices };
@@ -85,9 +116,10 @@ export async function checkAndroidPrerequisites(): Promise<PrerequisiteCheck> {
 
 // ─── iOS Prerequisite Check ──────────────────────────────────
 
-export async function checkIosPrerequisites(): Promise<PrerequisiteCheck> {
+export async function checkIosPrerequisites(projectPath = process.cwd()): Promise<PrerequisiteCheck> {
   const issues: PrerequisiteIssue[] = [];
   const devices: EmulatorDevice[] = [];
+  const automation = await detectProjectAutomationProfile(projectPath, "ios");
 
   // Check macOS
   const isMac = process.platform === "darwin";
@@ -100,6 +132,12 @@ export async function checkIosPrerequisites(): Promise<PrerequisiteCheck> {
   if (!isMac) {
     return { platform: "ios", available: false, issues, devices };
   }
+
+  issues.push({
+    check: `Detected project automation: ${formatAutomationLabel(automation)}`,
+    passed: true,
+    hint: automation.reason,
+  });
 
   // Check Xcode
   const xcodePathOutput = await execSafe("xcode-select", ["-p"]);
@@ -120,12 +158,32 @@ export async function checkIosPrerequisites(): Promise<PrerequisiteCheck> {
   });
 
   // Check AXe CLI for native interaction (tap, swipe, type)
-  const axeInstalled = await hasAxe();
-  issues.push({
-    check: "AXe CLI (native touch/type/swipe)",
-    passed: axeInstalled,
-    hint: axeInstalled ? undefined : "Install AXe: brew tap cameroncooke/axe && brew install axe",
-  });
+  if (automation.mode === "hybrid") {
+    const appiumInstalled = await hasAppiumCommand();
+    issues.push({
+      check: "Appium CLI (hybrid WebView automation)",
+      passed: appiumInstalled,
+      autoFixable: !appiumInstalled,
+      hint: appiumInstalled ? undefined : "Install Appium: npm install -g appium",
+    });
+
+    const hasDriver = appiumInstalled && await hasRequiredAppiumDriver("ios");
+    issues.push({
+      check: "Appium XCUITest driver",
+      passed: hasDriver,
+      autoFixable: !hasDriver,
+      hint: hasDriver ? undefined : "Install driver: appium driver install xcuitest",
+    });
+  } else {
+    const axeInstalled = await hasAxe();
+    const brewAvailable = await hasHomebrew();
+    issues.push({
+      check: "AXe CLI (native touch/type/swipe)",
+      passed: axeInstalled,
+      autoFixable: !axeInstalled && brewAvailable,
+      hint: axeInstalled ? undefined : "Install AXe: brew tap cameroncooke/axe && brew install axe",
+    });
+  }
 
   // Parse simulator devices
   if (hasSimctl) {
@@ -160,4 +218,12 @@ export async function checkIosPrerequisites(): Promise<PrerequisiteCheck> {
   const available = issues.every((i) => i.passed);
   const canProceed = issues.every((i) => i.passed || i.autoFixable);
   return { platform: "ios", available, canProceed, issues, devices };
+}
+
+function formatAutomationLabel(
+  automation: Awaited<ReturnType<typeof detectProjectAutomationProfile>>,
+): string {
+  return automation.mode === "hybrid"
+    ? `Hybrid WebView (${automation.framework})`
+    : `Native views (${automation.framework})`;
 }

@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Box, Text, useApp, useInput } from "ink";
 import { Header } from "./Header.js";
 import { StatusBar } from "./StatusBar.js";
 import { MenuItem } from "./MenuItem.js";
 import { TextInput } from "./TextInput.js";
 import { TestProgress } from "./TestProgress.js";
-import { initConfig, configExists, loadConfig, saveConfig, getReportDir, getNotesDir, getMemoryPath } from "../config/settings.js";
+import { initConfig, configExists, loadConfig, saveConfig, getReportDir, getMemoryPath } from "../config/settings.js";
 import { getRegressionContext } from "../git/context.js";
 import { getAvailableProviders } from "../providers/registry.js";
 import { getLocalAppUrlError, isLocalAppUrl, runTestSession, runNativeTestSession } from "../orchestrator/index.js";
@@ -17,7 +17,11 @@ import type { GetwiredSettings } from "../config/settings.js";
 import type { DeviceProfile, TestFinding, TestPersona, TestReport, NativePlatform } from "../providers/types.js";
 import type { TestStep, TestPhase } from "../orchestrator/index.js";
 import type { PrerequisiteCheck } from "../emulator/types.js";
+import { clearAndroidSdkInfoCache } from "../emulator/android-sdk.js";
 import { checkAndroidPrerequisites, checkIosPrerequisites } from "../emulator/detect.js";
+import { installNativeTestDependencies } from "../emulator/ensure-dependencies.js";
+
+const INSTALL_SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
 // ─── View types ──────────────────────────────────────────
 type View =
@@ -71,7 +75,7 @@ export function App({ mode, initProvider }: AppProps) {
   const [testPhaseMsg, setTestPhaseMsg] = useState("Starting...");
   const [testSteps, setTestSteps] = useState<TestStep[]>([]);
   const [testFindings, setTestFindings] = useState<TestFinding[]>([]);
-  const [testLogs, setTestLogs] = useState<string[]>([]);
+  const [, setTestLogs] = useState<string[]>([]);
   const [testReport, setTestReport] = useState<TestReport | null>(null);
   const [testError, setTestError] = useState<string | null>(null);
   const [providerOutput, setProviderOutput] = useState("");
@@ -115,8 +119,6 @@ export function App({ mode, initProvider }: AppProps) {
   const [confirmClearReports, setConfirmClearReports] = useState(false);
 
   // Notes
-  const [noteFiles, setNoteFiles] = useState<string[]>([]);
-  const [noteIndex, setNoteIndex] = useState(0);
   const [noteContent, setNoteContent] = useState<string | null>(null);
 
   // Settings
@@ -130,10 +132,13 @@ export function App({ mode, initProvider }: AppProps) {
   const [nativePlatformIndex, setNativePlatformIndex] = useState(0);
   const [nativeCheckResult, setNativeCheckResult] = useState<PrerequisiteCheck | null>(null);
   const [nativeCheckLoading, setNativeCheckLoading] = useState(false);
+  const [nativeInstallLoading, setNativeInstallLoading] = useState(false);
+  const [nativeInstallError, setNativeInstallError] = useState<string | null>(null);
+  const [nativeInstallTick, setNativeInstallTick] = useState(0);
 
   const providers = getAvailableProviders();
   const selectedInitProvider = providers[providerIndex];
-  const selectedSettingsProvider = providers[settingEditIndex];
+
   const regressionTargets = getRegressionTargets(regressionContext);
 
   // ─── Load config on mount ───────────────────────────
@@ -150,6 +155,16 @@ export function App({ mode, initProvider }: AppProps) {
       doInit(initProvider);
     }
   }, []);
+
+  useEffect(() => {
+    if (!nativeInstallLoading) {
+      setNativeInstallTick(0);
+      return;
+    }
+
+    const timer = setInterval(() => setNativeInstallTick((tick) => tick + 1), 120);
+    return () => clearInterval(timer);
+  }, [nativeInstallLoading]);
 
   // ─── Navigation helpers ─────────────────────────────
   function goToDashboard() {
@@ -239,15 +254,27 @@ export function App({ mode, initProvider }: AppProps) {
     return savedUrl && isLocalAppUrl(savedUrl) ? savedUrl : "";
   }
 
+  function hasNativeAutoFixableIssues(result: PrerequisiteCheck | null): boolean {
+    return !!result?.issues.some((issue) => !issue.passed && issue.autoFixable);
+  }
+
+  async function getPrerequisiteCheck(platform: NativePlatform): Promise<PrerequisiteCheck> {
+    if (platform === "android") {
+      clearAndroidSdkInfoCache();
+      return checkAndroidPrerequisites(process.cwd());
+    }
+
+    return checkIosPrerequisites(process.cwd());
+  }
+
   // ─── Native emulator prerequisite check ─────────────
   async function runPrerequisiteCheck(platform: NativePlatform) {
     setNativeCheckLoading(true);
     setNativeCheckResult(null);
+    setNativeInstallError(null);
 
     try {
-      const result = platform === "android"
-        ? await checkAndroidPrerequisites()
-        : await checkIosPrerequisites();
+      const result = await getPrerequisiteCheck(platform);
       setNativeCheckResult(result);
     } catch (err) {
       setNativeCheckResult({
@@ -259,6 +286,35 @@ export function App({ mode, initProvider }: AppProps) {
       });
     } finally {
       setNativeCheckLoading(false);
+    }
+  }
+
+  async function autoInstallNativeDependencies(platform: NativePlatform) {
+    setNativeInstallLoading(true);
+    setNativeInstallError(null);
+
+    try {
+      const installResult = await installNativeTestDependencies(platform, process.cwd());
+      if (!installResult.ok) {
+        setNativeInstallError(installResult.error ?? "Auto-install failed.");
+        return;
+      }
+
+      const refreshedCheck = await getPrerequisiteCheck(platform);
+      setNativeCheckResult(refreshedCheck);
+
+      if (!refreshedCheck.available) {
+        setView("native-check");
+        return;
+      }
+
+      setTestModeIndex(0);
+      setSelectedTestPersona("standard");
+      setView("native-mode");
+    } catch (err) {
+      setNativeInstallError(String(err));
+    } finally {
+      setNativeInstallLoading(false);
     }
   }
 
@@ -482,24 +538,27 @@ export function App({ mode, initProvider }: AppProps) {
       // ── Native: Check results ──
       case "native-check":
         if (key.escape || input === "b") { setView("native-platform"); return; }
-        if (key.return && nativeCheckResult?.canProceed) {
-          if (!nativeCheckResult.available) {
-            setView("native-install-confirm");
+        if (key.return && nativeCheckResult) {
+          if (nativeCheckResult.available) {
+            setTestModeIndex(0);
+            setSelectedTestPersona("standard");
+            setView("native-mode");
             return;
           }
-      
-          setTestModeIndex(0);
-          setSelectedTestPersona("standard");
-          setView("native-mode");
+
+          if (hasNativeAutoFixableIssues(nativeCheckResult)) {
+            setNativeInstallError(null);
+            setView("native-install-confirm");
+          }
         }
         break;
-
+ 
       case "native-install-confirm":
+        if (nativeInstallLoading) break;
         if (key.escape || input === "b" || input === "n") { setView("native-check"); return; }
         if (key.return || input === "y") {
-          setTestModeIndex(0);
-          setSelectedTestPersona("standard");
-          setView("native-mode");
+          setNativeInstallError(null);
+          autoInstallNativeDependencies(nativePlatform);
         }
         break;
 
@@ -579,7 +638,7 @@ export function App({ mode, initProvider }: AppProps) {
     return 0;
   }
 
-  async function handleSettingEdit(section: string, input: string, key: any) {
+  async function handleSettingEdit(section: string, _input: string, key: any) {
     if (!settings) return;
 
     const getMaxIndex = () => {
@@ -1041,12 +1100,15 @@ export function App({ mode, initProvider }: AppProps) {
                     )}
                   </Box>
                 )}
-                {nativeCheckResult.canProceed ? (
+                {nativeCheckResult.available ? (
+                  <Box marginTop={1} gap={2}>
+                    <Text color="green" dimColor>[Enter] Continue to test setup</Text>
+                    <Text color="green" dimColor>[Esc] Back</Text>
+                  </Box>
+                ) : hasNativeAutoFixableIssues(nativeCheckResult) ? (
                   <Box marginTop={1} gap={2}>
                     <Text color="green" dimColor>
-                      {nativeCheckResult.available
-                        ? "[Enter] Continue to test setup"
-                        : "[Enter] Review auto-install"}
+                      [Enter] Review auto-install
                     </Text>
                     <Text color="green" dimColor>[Esc] Back</Text>
                   </Box>
@@ -1070,7 +1132,7 @@ export function App({ mode, initProvider }: AppProps) {
           <Box flexDirection="column" paddingX={2} gap={1}>
             <Text color="yellowBright" bold>◆ Native automation install required</Text>
             <Text color="green" dimColor>
-              GetWired can install the missing native automation tools before the test run starts.
+              GetWired can install the missing native automation tools below with your approval.
             </Text>
             <Box flexDirection="column" marginY={1}>
               {nativeCheckResult.issues
@@ -1081,12 +1143,25 @@ export function App({ mode, initProvider }: AppProps) {
                   </Box>
                 ))}
             </Box>
+            {nativeInstallError && (
+              <Text color="redBright">
+                {nativeInstallError}
+              </Text>
+            )}
             <Text color="green" dimColor>
-              The install may take a few minutes and requires network access.
+              The install may take a few minutes and requires network access. You may still need to complete any remaining manual setup after it finishes.
             </Text>
             <Box marginTop={1} gap={2}>
-              <Text color="green" dimColor>[Y / Enter] Auto-install and continue</Text>
-              <Text color="green" dimColor>[N / Esc] Back</Text>
+              {nativeInstallLoading ? (
+                <Text color="greenBright">
+                  {INSTALL_SPINNER_FRAMES[nativeInstallTick % INSTALL_SPINNER_FRAMES.length]} Installing missing native tools...
+                </Text>
+              ) : (
+                <>
+                  <Text color="green" dimColor>[Y / Enter] Auto-install and continue</Text>
+                  <Text color="green" dimColor>[N / Esc] Back</Text>
+                </>
+              )}
             </Box>
           </Box>
         </>
@@ -1506,7 +1581,7 @@ export function App({ mode, initProvider }: AppProps) {
 
 const MENU_ITEMS = [
   { label: "Run Tests", description: "Tell me what to test — I'll try to break it", hotkey: "t", action: "test" },
-  { label: "Native App Test", description: "Test on real Android/iOS emulators", hotkey: "m", action: "native" },
+  { label: "Native App Test", description: "Early Android/iOS support on emulators", hotkey: "m", action: "native" },
   { label: "Regression Check", description: "Test against a commit or PR", hotkey: "r", action: "regression" },
   { label: "View Reports", description: "Browse past test reports", hotkey: "v", action: "reports" },
   { label: "Project Memory", description: "View learned project context", hotkey: "n", action: "notes" },

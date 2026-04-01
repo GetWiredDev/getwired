@@ -57,9 +57,11 @@ function getDefaultSdkRoots(): string[] {
 
   if (process.platform === "darwin") {
     return [
+      join("/opt", "homebrew", "share", "android-commandlinetools"),
       join(home, "Library", "Android", "sdk"),
       join(home, "Android", "Sdk"),
       join("/Library", "Android", "sdk"),
+      join("/usr", "local", "share", "android-commandlinetools"),
     ];
   }
 
@@ -86,6 +88,32 @@ function resolveSdkTool(sdkRoot: string | undefined, tool: AndroidTool, pathFall
   }
 
   return pathFallback;
+}
+
+function uniquePathEntries(entries: Array<string | undefined>): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const entry of entries) {
+    if (!entry || seen.has(entry)) continue;
+    seen.add(entry);
+    result.push(entry);
+  }
+  return result;
+}
+
+function getSdkPathEntries(sdkRoot: string): string[] {
+  const cmdlineToolsLatest = join(sdkRoot, "cmdline-tools", "latest", "bin");
+  const cmdlineToolsBin = join(sdkRoot, "cmdline-tools", "bin");
+  const legacyToolsBin = join(sdkRoot, "tools", "bin");
+  const platformTools = join(sdkRoot, "platform-tools");
+  const emulator = join(sdkRoot, "emulator");
+  return [
+    platformTools,
+    emulator,
+    existsSync(cmdlineToolsLatest) ? cmdlineToolsLatest : undefined,
+    existsSync(cmdlineToolsBin) ? cmdlineToolsBin : undefined,
+    existsSync(legacyToolsBin) ? legacyToolsBin : undefined,
+  ].filter((entry): entry is string => Boolean(entry));
 }
 
 export function getAndroidSdkInfo(): AndroidSdkInfo {
@@ -130,6 +158,30 @@ export function getAndroidSdkInfo(): AndroidSdkInfo {
   };
 
   return cachedSdkInfo;
+}
+
+export function clearAndroidSdkInfoCache(): void {
+  cachedSdkInfo = undefined;
+}
+
+export function getAndroidToolEnv(baseEnv: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const info = getAndroidSdkInfo();
+  if (!info.sdkRoot) {
+    return { ...baseEnv };
+  }
+
+  const currentPathEntries = (baseEnv.PATH ?? "").split(delimiter).filter(Boolean);
+  const pathEntries = uniquePathEntries([
+    ...getSdkPathEntries(info.sdkRoot),
+    ...currentPathEntries,
+  ]);
+
+  return {
+    ...baseEnv,
+    ANDROID_HOME: info.sdkRoot,
+    ANDROID_SDK_ROOT: info.sdkRoot,
+    PATH: pathEntries.join(delimiter),
+  };
 }
 
 export function requireAndroidTool(tool: AndroidTool): string {

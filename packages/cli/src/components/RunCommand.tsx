@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Box, Text, useApp } from "ink";
 import { Header } from "./Header.js";
 import { StatusBar } from "./StatusBar.js";
@@ -23,12 +23,12 @@ interface RunCommandProps {
 }
 
 export function RunCommand({ options }: RunCommandProps) {
-  const { exit } = useApp();
+  const { exit: _exit } = useApp();
   const [phase, setPhase] = useState<TestPhase>("initializing");
   const [phaseMessage, setPhaseMessage] = useState("Starting...");
   const [steps, setSteps] = useState<TestStep[]>([]);
   const [findings, setFindings] = useState<TestFinding[]>([]);
-  const [logs, setLogs] = useState<string[]>([]);
+  const [, setLogs] = useState<string[]>([]);
   const [report, setReport] = useState<TestReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [providerOutput, setProviderOutput] = useState("");

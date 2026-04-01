@@ -53,9 +53,9 @@ export class AuggieProvider extends TestingProvider {
   }
 
   async evaluateRegression(
-    baselineBase64: string,
-    currentBase64: string,
-    diffBase64: string,
+    _baselineBase64: string,
+    _currentBase64: string,
+    _diffBase64: string,
     url: string,
     device: "desktop" | "mobile",
   ): Promise<TestFinding[]> {
