@@ -1,20 +1,33 @@
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import type { EmulatorDevice } from "./types.js";
-import { requireAndroidTool } from "./android-sdk.js";
+import { getAndroidToolEnv, requireAndroidTool } from "./android-sdk.js";
 
 const execFileAsync = promisify(execFile);
 
 const DEFAULT_TIMEOUT = 30_000;
 const BOOT_TIMEOUT = 120_000;
+const ACTIVITY_RESOLUTION_TIMEOUT = 10_000;
+const APP_LAUNCH_ATTEMPTS = 3;
+const APP_LAUNCH_RETRY_DELAY = 1_500;
 
 export interface AndroidAppLaunchResult {
   packageName: string;
   output: string;
+  activity?: string;
+}
+
+interface AndroidLaunchAttempt {
+  output: string;
+  activity?: string;
 }
 
 async function exec(cmd: string, args: string[], timeout = DEFAULT_TIMEOUT): Promise<string> {
-  const { stdout } = await execFileAsync(cmd, args, { encoding: "utf-8", timeout });
+  const { stdout } = await execFileAsync(cmd, args, {
+    encoding: "utf-8",
+    timeout,
+    env: getAndroidToolEnv(process.env),
+  });
   return stdout.trim();
 }
 
@@ -26,17 +39,75 @@ function getEmulatorPath(): string {
   return requireAndroidTool("emulator");
 }
 
-async function launchPackage(packageName: string, deviceId?: string, activity?: string): Promise<string> {
-  const args = deviceId ? ["-s", deviceId] : [];
+function getAdbTargetArgs(deviceId?: string): string[] {
+  return deviceId ? ["-s", deviceId] : [];
+}
+
+function qualifyActivity(packageName: string, activity: string): string {
+  if (activity.includes("/")) return activity;
+  if (activity.startsWith(".")) return `${packageName}/${activity}`;
+  if (activity.includes(".")) return `${packageName}/${activity}`;
+  return `${packageName}/.${activity}`;
+}
+
+function extractActivityFromComponent(component: string): string | undefined {
+  const [, activity] = component.split("/", 2);
+  return activity?.trim() || undefined;
+}
+
+function parseResolvedLauncherComponent(output: string): string | undefined {
+  const lines = output
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return lines.reverse().find((line) => line.includes("/"));
+}
+
+async function resolveLauncherComponent(packageName: string, deviceId?: string): Promise<string | undefined> {
+  const args = getAdbTargetArgs(deviceId);
+  const launchIntentArgs = [
+    "shell",
+    "cmd",
+    "package",
+    "resolve-activity",
+    "--brief",
+    "-a",
+    "android.intent.action.MAIN",
+    "-c",
+    "android.intent.category.LAUNCHER",
+    packageName,
+  ];
+  const output = await execAdb([...args, ...launchIntentArgs], ACTIVITY_RESOLUTION_TIMEOUT).catch(() => "");
+  const component = parseResolvedLauncherComponent(output);
+  if (component) return component;
+
+  const fallback = await execAdb(
+    [...args, "shell", "cmd", "package", "resolve-activity", "--brief", packageName],
+    ACTIVITY_RESOLUTION_TIMEOUT,
+  ).catch(() => "");
+  return parseResolvedLauncherComponent(fallback);
+}
+
+async function launchPackage(packageName: string, deviceId?: string, activity?: string): Promise<AndroidLaunchAttempt> {
+  const args = getAdbTargetArgs(deviceId);
   if (activity) {
-    const qualifiedActivity = activity.includes("/") ? activity : `${packageName}/${activity}`;
-    return execAdb([...args, "shell", "am", "start", "-n", qualifiedActivity]);
+    const qualifiedActivity = qualifyActivity(packageName, activity);
+    const output = await execAdb([...args, "shell", "am", "start", "-n", qualifiedActivity]);
+    return { output, activity: extractActivityFromComponent(qualifiedActivity) };
   }
-  return execAdb([...args, "shell", "monkey", "-p", packageName, "-c", "android.intent.category.LAUNCHER", "1"]);
+
+  const resolvedComponent = await resolveLauncherComponent(packageName, deviceId);
+  if (resolvedComponent) {
+    const output = await execAdb([...args, "shell", "am", "start", "-n", resolvedComponent]);
+    return { output, activity: extractActivityFromComponent(resolvedComponent) };
+  }
+
+  const output = await execAdb([...args, "shell", "monkey", "-p", packageName, "-c", "android.intent.category.LAUNCHER", "1"]);
+  return { output };
 }
 
 async function listInstalledPackages(deviceId?: string): Promise<string[]> {
-  const args = deviceId ? ["-s", deviceId] : [];
+  const args = getAdbTargetArgs(deviceId);
   const output = await execAdb([...args, "shell", "pm", "list", "packages"], 10_000);
   return output
     .split("\n")
@@ -89,6 +160,7 @@ export function boot(avdName: string): ReturnType<typeof spawn> {
   return spawn(getEmulatorPath(), ["-avd", avdName, "-no-snapshot-save"], {
     stdio: "ignore",
     detached: true,
+    env: getAndroidToolEnv(process.env),
   });
 }
 
@@ -117,21 +189,33 @@ export async function openUrl(url: string, deviceId?: string): Promise<string> {
 }
 
 export async function launchApp(packageName: string, deviceId?: string, activity?: string): Promise<AndroidAppLaunchResult> {
-  try {
-    const output = await launchPackage(packageName, deviceId, activity);
-    return { packageName, output };
-  } catch (error) {
-    const alternatives = await findAlternativePackages(packageName, deviceId).catch(() => []);
-    for (const candidate of alternatives) {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < APP_LAUNCH_ATTEMPTS; attempt++) {
+    const candidates = [
+      packageName,
+      ...await findAlternativePackages(packageName, deviceId).catch(() => []),
+    ].filter((candidate, index, all) => candidate && all.indexOf(candidate) === index);
+
+    for (const candidate of candidates) {
       try {
-        const output = await launchPackage(candidate, deviceId, activity);
-        return { packageName: candidate, output };
-      } catch {
-        // try the next installed package candidate
+        const launch = await launchPackage(candidate, deviceId, activity);
+        return {
+          packageName: candidate,
+          output: launch.output,
+          activity: launch.activity ?? activity,
+        };
+      } catch (error) {
+        lastError = error;
       }
     }
-    throw error;
+
+    if (attempt < APP_LAUNCH_ATTEMPTS - 1) {
+      await new Promise((resolve) => setTimeout(resolve, APP_LAUNCH_RETRY_DELAY));
+    }
   }
+
+  throw lastError ?? new Error(`Unable to launch Android package ${packageName}`);
 }
 
 export async function openDeepLink(url: string, packageName: string, deviceId?: string): Promise<string> {
@@ -160,6 +244,7 @@ export async function screenshot(path: string, deviceId?: string): Promise<strin
       encoding: "buffer" as any,
       maxBuffer: 20 * 1024 * 1024,
       timeout: DEFAULT_TIMEOUT,
+      env: getAndroidToolEnv(process.env),
     });
     await writeFile(path, stdout);
     return path;
@@ -219,7 +304,7 @@ export async function setDarkMode(enabled: boolean, deviceId?: string): Promise<
 
 // ─── Screen Recording ────────────────────────────────────────
 
-export function startRecording(outputPath: string, deviceId?: string): ReturnType<typeof spawn> {
+export function startRecording(_outputPath: string, deviceId?: string): ReturnType<typeof spawn> {
   const args = deviceId ? ["-s", deviceId] : [];
   // Returns child process — call .kill("SIGINT") to stop, then pull the file
   return spawn(requireAndroidTool("adb"), [...args, "shell", "screenrecord", "/sdcard/recording.mp4"], {

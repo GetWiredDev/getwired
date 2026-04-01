@@ -1,13 +1,23 @@
 import { readFile, writeFile, readdir, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { join, relative } from "node:path";
 import { execSync } from "node:child_process";
 import { createConnection } from "node:net";
 import { getBrowserSession } from "../browser/session.js";
 import { ensureAgentBrowser } from "../providers/ensure-cli.js";
 import { getProvider } from "../providers/registry.js";
-import { loadConfig, saveConfig, resolveAuth, getBaselineDir, getReportDir, getNotesDir, getMemoryPath } from "../config/settings.js";
-import { captureScreenshots, captureMultiplePages } from "../screenshot/capture.js";
+import {
+  loadConfig,
+  saveConfig,
+  resolveAuth,
+  getBaselineDir,
+  getReportDir,
+  getNotesDir,
+  getMemoryPath,
+  getHybridScenarioCachePath,
+} from "../config/settings.js";
+import { captureMultiplePages } from "../screenshot/capture.js";
 import { compareScreenshots, imageToBase64 } from "../screenshot/compare.js";
 import {
   describeNativeLaunchTarget,
@@ -16,10 +26,29 @@ import {
   upsertNativeLaunchMemory,
 } from "../emulator/native-launch.js";
 import { buildActionPrompt, validateScenarioActions } from "../emulator/native-actions.js";
+import { getAndroidToolEnv } from "../emulator/android-sdk.js";
 import type {
+  NativeAutomationProfile,
   ResolvedAndroidLaunchTarget,
   ResolvedIosLaunchTarget,
 } from "../emulator/native-launch.js";
+import {
+  assertAppiumSelector,
+  captureAppiumScreenshot,
+  clickAppiumElement,
+  createHybridAppiumSession,
+  deleteAppiumSession,
+  describeHybridWebview,
+  fillAppiumElement,
+  getAppiumContexts,
+  navigateAppiumTo,
+  pressAppiumKey,
+  scrollAppiumBy,
+  selectAppiumOption,
+  switchAppiumContext,
+  waitForHybridWebviewContext,
+} from "../emulator/appium.js";
+import type { AppiumContextInfo, AppiumSession } from "../emulator/appium.js";
 import type {
   TestContext,
   TestExecutionSummary,
@@ -63,6 +92,7 @@ export interface OrchestratorCallbacks {
 interface TestAction {
   type: "navigate" | "click" | "tap" | "fill" | "select" | "scroll" | "swipe-gesture" | "wait" | "screenshot" | "assert" | "keyboard" | "button";
   selector?: string;
+  selectorCandidates?: string[];
   value?: string;
   url?: string;
   key?: string;
@@ -84,13 +114,40 @@ interface BrowserExecutionStats {
 interface ScenarioExecutionResult extends BrowserExecutionStats {
   findings: TestFinding[];
   executedScenarios: number;
+  failedScenarios: number;
   error?: string;
+}
+
+interface HybridScenarioSanitizationResult {
+  scenarios: InteractionScenario[];
+  droppedWeakSelectors: number;
+  droppedEmptyScenarios: number;
+}
+
+interface HybridSelectorCatalog {
+  selectors: Set<string>;
 }
 
 interface AccessibilityExecutionResult extends BrowserExecutionStats {
   findings: TestFinding[];
   completed: boolean;
   error?: string;
+}
+
+interface HybridScenarioCacheEntry {
+  key: string;
+  createdAt: string;
+  platform: "android" | "ios";
+  framework: string;
+  viewUrl?: string;
+  title?: string;
+  plan: string;
+  scenarios: InteractionScenario[];
+}
+
+interface HybridScenarioCacheFile {
+  version: 1;
+  entries: HybridScenarioCacheEntry[];
 }
 
 interface AndroidUiNode {
@@ -110,6 +167,9 @@ interface ResolvedTestUrlResult {
 
 const MOBILE_USER_AGENT =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
+
+const MAX_HYBRID_SCENARIOS = 8;
+const MAX_HYBRID_CACHE_ENTRIES = 12;
 
 interface CrawledHeading {
   level: string;
@@ -688,6 +748,7 @@ export async function runNativeTestSession(
   callbacks.onStepUpdate(steps);
 
   let debugLog = `GetWired Debug Log (Native ${options.nativePlatform})\nRun: ${runId}\nTimestamp: ${new Date().toISOString()}\nProvider: ${settings.provider}\nPersona: ${persona}\nPlatform: ${options.nativePlatform}\nURL: ${resolvedUrl ?? "(none)"}\n${"─".repeat(60)}\n\n`;
+  let hybridSession: AppiumSession | null = null;
 
   const out = (text: string) => {
     debugLog += text;
@@ -785,10 +846,6 @@ export async function runNativeTestSession(
     if (options.nativePlatform === "android") {
       let androidTarget = nativeLaunchTarget as ResolvedAndroidLaunchTarget;
       const android = await import("../emulator/android-emulator.js");
-      if (androidTarget.launchCommand) {
-        out(`> Running project launch command: ${androidTarget.launchCommand}\n`);
-        await runNativeProjectLaunchCommand(androidTarget.launchCommand, projectPath, androidTarget.workingDirectory, out);
-      }
       const running = await android.listRunningDevices();
       if (running.length > 0) {
         deviceId = running[0].id;
@@ -804,13 +861,29 @@ export async function runNativeTestSession(
         deviceId = devices[0]?.id;
         out(`  Emulator booted: ${deviceId}\n`);
       }
+      if (androidTarget.launchCommand) {
+        const launchCommand = prepareAndroidProjectLaunchCommand(androidTarget.launchCommand, deviceId);
+        out(`> Running project launch command: ${launchCommand}\n`);
+        await runNativeProjectLaunchCommand(launchCommand, projectPath, androidTarget.workingDirectory, out, "android");
+      }
       out(`> Launching ${androidTarget.packageName} in ${platformLabel}...\n`);
       try {
         const launchResult = await android.launchApp(androidTarget.packageName, deviceId, androidTarget.activity);
-        if (launchResult.packageName !== androidTarget.packageName) {
-          androidTarget = { ...androidTarget, packageName: launchResult.packageName };
+        const resolvedPackageChanged = launchResult.packageName !== androidTarget.packageName;
+        const resolvedActivityChanged = Boolean(launchResult.activity && launchResult.activity !== androidTarget.activity);
+        if (resolvedPackageChanged || resolvedActivityChanged) {
+          androidTarget = {
+            ...androidTarget,
+            packageName: launchResult.packageName,
+            activity: launchResult.activity ?? androidTarget.activity,
+          };
           nativeLaunchTarget = androidTarget;
-          out(`  Resolved installed package ${androidTarget.packageName} on device\n`);
+          if (resolvedPackageChanged) {
+            out(`  Resolved installed package ${androidTarget.packageName} on device\n`);
+          }
+          if (resolvedActivityChanged) {
+            out(`  Resolved launcher activity ${launchResult.activity}\n`);
+          }
         }
       } catch (error) {
         const refreshed = await resolveNativeLaunchTarget(
@@ -827,10 +900,21 @@ export async function runNativeTestSession(
         androidTarget = refreshed;
         out(`  Retrying with ${describeNativeLaunchTarget(nativeLaunchTarget)}\n`);
         const launchResult = await android.launchApp(androidTarget.packageName, deviceId, androidTarget.activity);
-        if (launchResult.packageName !== androidTarget.packageName) {
-          androidTarget = { ...androidTarget, packageName: launchResult.packageName };
+        const resolvedPackageChanged = launchResult.packageName !== androidTarget.packageName;
+        const resolvedActivityChanged = Boolean(launchResult.activity && launchResult.activity !== androidTarget.activity);
+        if (resolvedPackageChanged || resolvedActivityChanged) {
+          androidTarget = {
+            ...androidTarget,
+            packageName: launchResult.packageName,
+            activity: launchResult.activity ?? androidTarget.activity,
+          };
           nativeLaunchTarget = androidTarget;
-          out(`  Resolved installed package ${androidTarget.packageName} on device\n`);
+          if (resolvedPackageChanged) {
+            out(`  Resolved installed package ${androidTarget.packageName} on device\n`);
+          }
+          if (resolvedActivityChanged) {
+            out(`  Resolved launcher activity ${launchResult.activity}\n`);
+          }
         }
       }
 
@@ -846,7 +930,7 @@ export async function runNativeTestSession(
       const { execFile: spawnExec } = await import("node:child_process");
       if (iosTarget.launchCommand) {
         out(`> Running project launch command: ${iosTarget.launchCommand}\n`);
-        await runNativeProjectLaunchCommand(iosTarget.launchCommand, projectPath, iosTarget.workingDirectory, out);
+        await runNativeProjectLaunchCommand(iosTarget.launchCommand, projectPath, iosTarget.workingDirectory, out, "ios");
       }
       const booted = await ios.listBootedDevices();
       if (booted.length > 0) {
@@ -935,7 +1019,34 @@ export async function runNativeTestSession(
     out(`> ${settings.provider}: ${personaProfile.outputMessages.planning}\n\n`);
 
     let uiStructure = "";
-    if (options.nativePlatform === "android") {
+    let hybridContexts: AppiumContextInfo[] = [];
+    let hybridWebviewContext: AppiumContextInfo | null = null;
+    let hybridContextError = "";
+    let hybridCacheKey: string | null = null;
+    let hybridCacheViewUrl: string | undefined;
+    let hybridCacheTitle: string | undefined;
+    const automationMode = nativeLaunchTarget.automation.mode;
+    if (automationMode === "hybrid") {
+      out(`  Detected hybrid ${nativeLaunchTarget.automation.framework} app — starting Appium WEBVIEW session\n`);
+      try {
+        const hybridState = await ensureHybridSessionReady(
+          hybridSession,
+          options.nativePlatform === "android"
+            ? nativeLaunchTarget as ResolvedAndroidLaunchTarget
+            : nativeLaunchTarget as ResolvedIosLaunchTarget,
+          deviceId,
+          out,
+        );
+        hybridSession = hybridState.session;
+        hybridContexts = hybridState.contexts;
+        hybridWebviewContext = hybridState.webviewContext;
+        uiStructure = await describeHybridWebview(hybridSession);
+        out(`  Using hybrid UI dump (Appium ${hybridWebviewContext.id})\n`);
+      } catch (error) {
+        hybridContextError = String(error);
+        out(`  ! Hybrid Appium session failed: ${hybridContextError}\n`);
+      }
+    } else if (options.nativePlatform === "android") {
       const android = await import("../emulator/android-emulator.js");
       uiStructure = await android.uiDump(deviceId).catch(() => "");
       out(`  Using native UI dump (adb uiautomator)\n`);
@@ -945,76 +1056,228 @@ export async function runNativeTestSession(
       out(`  Using native UI dump (accessibility)\n`);
     }
 
-    const testPlan = await streamAnalyze(context, [
-      { role: "system", content: buildSystemPrompt(persona, memory) },
-      {
-        role: "user",
-        content: buildNativeReconPrompt(context, projectInfo, notes, uiStructure, nativeLaunchTarget),
-      },
-    ]);
-    callbacks.onLog(`Test plan generated with ${countPlanSteps(testPlan)} items`);
-    await updateStep(steps, 5, "passed", callbacks);
-
-    // ── Step 7: Execute test scenarios ────────────────
-    callbacks.onPhaseChange("testing", personaProfile.phaseMessages.scenarios);
-    await updateStep(steps, 6, "running", callbacks, undefined, `Using ${platformLabel}`);
-    out(`\n> ${settings.provider}: ${personaProfile.outputMessages.scenarios}\n\n`);
-
+    const nativeUiDiagnostics = automationMode === "hybrid"
+      ? analyzeHybridUiStructure(uiStructure, nativeLaunchTarget.automation, hybridContextError, hybridContexts, hybridWebviewContext)
+      : analyzeNativeUiStructure(options.nativePlatform, uiStructure, nativeLaunchTarget);
+    if (automationMode === "hybrid" && nativeUiDiagnostics.actionable) {
+      const cacheIdentity = buildHybridScenarioCacheKey(nativeLaunchTarget, uiStructure);
+      hybridCacheKey = cacheIdentity.key;
+      hybridCacheViewUrl = cacheIdentity.viewUrl;
+      hybridCacheTitle = cacheIdentity.title;
+    }
     let nativeScenarioExecution: ScenarioExecutionResult | null = null;
-    const scenarioPlanResult = await streamAnalyze(context, [
-      { role: "system", content: buildSystemPrompt(persona, memory) },
-      {
-        role: "user",
-        content: buildNativeScenariosPrompt(context, testPlan, uiStructure, nativeLaunchTarget),
-      },
-    ]);
-    const rawScenarios = parseScenarios(scenarioPlanResult);
-    const providerScenarios = validateScenarioActions(rawScenarios, options.nativePlatform);
-    if (rawScenarios.length > 0 && providerScenarios.length < rawScenarios.length) {
-      const dropped = rawScenarios.length - providerScenarios.length;
-      out(`  Filtered ${dropped} scenario${dropped === 1 ? "" : "s"} with invalid action types\n`);
-    }
-    const usedBuiltInSmokeScenario = providerScenarios.length === 0;
-    const plannedScenarios = usedBuiltInSmokeScenario
-      ? buildBuiltInNativeSmokeScenarios()
-      : providerScenarios;
-    execution.scenariosPlanned += plannedScenarios.length;
 
-    if (usedBuiltInSmokeScenario) {
-      out(`  ! Provider returned no executable native scenarios; using built-in native smoke scenario\n`);
-    }
-
-    if (plannedScenarios.length > 0) {
-      if (options.nativePlatform === "android") {
-        const android = await import("../emulator/android-emulator.js");
-        nativeScenarioExecution = await executeAndroidNativeScenarios(
-          plannedScenarios, context, nativeLaunchTarget as ResolvedAndroidLaunchTarget, deviceId, out, android,
-        );
+    if (!nativeUiDiagnostics.actionable) {
+      const blockerMessage = `Native ${platformLabel} UI dump is not actionable: ${nativeUiDiagnostics.reason}`;
+      out(`  ! ${blockerMessage}\n`);
+      callbacks.onLog(blockerMessage);
+      findings.push({
+        id: `native-ui-${generateId()}`,
+        severity: "high",
+        category: "functional",
+        title: `${platformLabel} accessibility tree is not actionable`,
+        description: `${nativeUiDiagnostics.reason} GetWired stopped before generating native interaction scenarios because taps and assertions would be unreliable.${nativeUiDiagnostics.likelyWebViewShell ? " This is typical for Capacitor-style WebView shells; use web testing against the local URL or add WEBVIEW context support in the native harness." : ""}`,
+        device: "mobile",
+        steps: [
+          `Launch the app in ${platformLabel}`,
+          "Capture the initial device screenshot",
+          "Read the native accessibility tree / UI dump",
+        ],
+      });
+      await updateStep(steps, 5, "failed", callbacks, undefined, nativeUiDiagnostics.reason);
+      await updateStep(steps, 6, "failed", callbacks, undefined, "Skipped because the native UI dump was not actionable");
+    } else {
+      let testPlan = "";
+      let reusedCachedHybridPlan = false;
+      if (automationMode === "hybrid" && hybridCacheKey) {
+        const cache = await loadHybridScenarioCache(projectPath).catch(() => ({ version: 1 as const, entries: [] }));
+        const cachedEntry = cache.entries.find((entry) => entry.key === hybridCacheKey);
+        if (cachedEntry?.plan) {
+          testPlan = cachedEntry.plan;
+          reusedCachedHybridPlan = true;
+          out(`  Reusing cached hybrid plan for ${cachedEntry.viewUrl ?? cachedEntry.title ?? "the current view"}\n`);
+          callbacks.onLog(`Reused cached hybrid plan for ${cachedEntry.viewUrl ?? cachedEntry.title ?? "current WEBVIEW"}`);
+        }
+      }
+      if (!testPlan) {
+        testPlan = await streamAnalyze(context, [
+          { role: "system", content: buildSystemPrompt(persona, memory) },
+          {
+            role: "user",
+            content: automationMode === "hybrid"
+              ? buildHybridReconPrompt(context, projectInfo, notes, uiStructure, nativeLaunchTarget, hybridContexts, hybridWebviewContext)
+              : buildNativeReconPrompt(context, projectInfo, notes, uiStructure, nativeLaunchTarget),
+          },
+        ]);
+      }
+      const providerNativeBlocker = analyzeNativeProviderBlocker(testPlan, nativeLaunchTarget);
+      if (providerNativeBlocker) {
+        const blockerMessage = `Native ${platformLabel} planning reported blocked interaction: ${providerNativeBlocker}`;
+        out(`  ! ${blockerMessage}\n`);
+        callbacks.onLog(blockerMessage);
+        findings.push({
+          id: `native-plan-${generateId()}`,
+          severity: "high",
+          category: "functional",
+          title: `${platformLabel} native planning detected a blocked UI tree`,
+          description: `${providerNativeBlocker} GetWired stopped before generating native interaction scenarios because the provider determined the native tree was not actionable.`,
+          device: "mobile",
+          steps: [
+            `Launch the app in ${platformLabel}`,
+            "Capture the initial device screenshot",
+            "Read the native accessibility tree / UI dump",
+            "Analyze the tree for actionable elements",
+          ],
+        });
+        await updateStep(steps, 5, "failed", callbacks, undefined, providerNativeBlocker);
+        await updateStep(steps, 6, "failed", callbacks, undefined, "Skipped because native interaction was blocked during planning");
       } else {
-        const ios = await import("../emulator/ios-simulator.js");
-        nativeScenarioExecution = await executeIosNativeScenarios(
-          plannedScenarios, context, nativeLaunchTarget as ResolvedIosLaunchTarget, deviceId, out, ios,
+        callbacks.onLog(`Test plan generated with ${countPlanSteps(testPlan)} items`);
+        await updateStep(steps, 5, "passed", callbacks);
+
+        // ── Step 7: Execute test scenarios ────────────────
+        callbacks.onPhaseChange("testing", personaProfile.phaseMessages.scenarios);
+        await updateStep(steps, 6, "running", callbacks, undefined, `Using ${platformLabel}`);
+        out(`\n> ${settings.provider}: ${personaProfile.outputMessages.scenarios}\n\n`);
+
+        let plannedScenarios: InteractionScenario[] = [];
+        let providerExplicitlyReturnedNoScenarios = false;
+        let usedBuiltInSmokeScenario = false;
+        const scenarioPlanResult = await streamAnalyze(context, [
+          { role: "system", content: buildSystemPrompt(persona, memory) },
+          {
+            role: "user",
+            content: automationMode === "hybrid"
+              ? buildHybridScenariosPrompt(context, testPlan, uiStructure, nativeLaunchTarget, hybridContexts, hybridWebviewContext)
+              : buildNativeScenariosPrompt(context, testPlan, uiStructure, nativeLaunchTarget),
+          },
+        ]);
+        const rawScenarios = parseScenarios(scenarioPlanResult);
+        let providerScenarios = validateScenarioActions(rawScenarios, options.nativePlatform, automationMode);
+        if (rawScenarios.length > 0 && providerScenarios.length < rawScenarios.length) {
+          const dropped = rawScenarios.length - providerScenarios.length;
+          out(`  Filtered ${dropped} scenario${dropped === 1 ? "" : "s"} with invalid action types\n`);
+        }
+        if (automationMode === "hybrid") {
+          const sanitized = sanitizeHybridScenarios(providerScenarios, uiStructure);
+          providerScenarios = sanitized.scenarios;
+          if (sanitized.droppedWeakSelectors > 0) {
+            out(`  Filtered ${sanitized.droppedWeakSelectors} hybrid action${sanitized.droppedWeakSelectors === 1 ? "" : "s"} with weak guessed selectors\n`);
+          }
+          if (sanitized.droppedEmptyScenarios > 0) {
+            out(`  Dropped ${sanitized.droppedEmptyScenarios} hybrid scenario${sanitized.droppedEmptyScenarios === 1 ? "" : "s"} that no longer had executable actions\n`);
+          }
+        }
+        if (automationMode === "hybrid" && providerScenarios.length > MAX_HYBRID_SCENARIOS) {
+          out(`  Capped hybrid scenario set from ${providerScenarios.length} to ${MAX_HYBRID_SCENARIOS} prioritized scenarios\n`);
+          providerScenarios = limitHybridScenarios(providerScenarios);
+        }
+        providerExplicitlyReturnedNoScenarios = rawScenarios.length === 0
+          && explicitlyReturnedEmptyScenarioArray(scenarioPlanResult);
+        usedBuiltInSmokeScenario = providerScenarios.length === 0 && !providerExplicitlyReturnedNoScenarios;
+        plannedScenarios = usedBuiltInSmokeScenario
+          ? buildBuiltInNativeSmokeScenarios()
+          : providerScenarios;
+
+        if (
+          automationMode === "hybrid"
+          && hybridCacheKey
+          && !usedBuiltInSmokeScenario
+          && plannedScenarios.length > 0
+        ) {
+          const updatedCache = upsertHybridScenarioCacheEntry(
+            await loadHybridScenarioCache(projectPath).catch(() => ({ version: 1 as const, entries: [] })),
+            {
+              key: hybridCacheKey,
+              createdAt: new Date().toISOString(),
+              platform: options.nativePlatform,
+              framework: nativeLaunchTarget.automation.framework,
+              viewUrl: hybridCacheViewUrl,
+              title: hybridCacheTitle,
+              plan: testPlan,
+              scenarios: plannedScenarios,
+            },
+          );
+          await saveHybridScenarioCache(projectPath, updatedCache).catch(() => {});
+        }
+        execution.scenariosPlanned += plannedScenarios.length;
+
+        if (usedBuiltInSmokeScenario) {
+          out(`  ! Provider returned no executable native scenarios; using built-in native smoke scenario\n`);
+        } else if (providerExplicitlyReturnedNoScenarios) {
+          out(`  ! Provider explicitly returned no native scenarios; skipping smoke fallback\n`);
+        } else if (reusedCachedHybridPlan) {
+          callbacks.onLog(`Hybrid scenarios regenerated from cached plan (${plannedScenarios.length})`);
+        }
+
+        if (plannedScenarios.length > 0) {
+          if (automationMode === "hybrid") {
+            const hybridState = await ensureHybridSessionReady(
+              hybridSession,
+              options.nativePlatform === "android"
+                ? nativeLaunchTarget as ResolvedAndroidLaunchTarget
+                : nativeLaunchTarget as ResolvedIosLaunchTarget,
+              deviceId,
+              out,
+            );
+            hybridSession = hybridState.session;
+            hybridContexts = hybridState.contexts;
+            hybridWebviewContext = hybridState.webviewContext;
+            nativeScenarioExecution = await executeHybridScenarios(
+              plannedScenarios,
+              context,
+              nativeLaunchTarget,
+              hybridSession,
+              deviceId,
+              uiStructure,
+              out,
+            );
+          } else if (options.nativePlatform === "android") {
+            const android = await import("../emulator/android-emulator.js");
+            nativeScenarioExecution = await executeAndroidNativeScenarios(
+              plannedScenarios, context, nativeLaunchTarget as ResolvedAndroidLaunchTarget, deviceId, out, android,
+            );
+          } else {
+            const ios = await import("../emulator/ios-simulator.js");
+            nativeScenarioExecution = await executeIosNativeScenarios(
+              plannedScenarios, context, nativeLaunchTarget as ResolvedIosLaunchTarget, deviceId, out, ios,
+            );
+          }
+          execution.browserSessions += nativeScenarioExecution.browserSessions;
+          execution.navigations += nativeScenarioExecution.navigations;
+          execution.screenshots += nativeScenarioExecution.screenshots;
+          execution.scenariosExecuted += nativeScenarioExecution.executedScenarios;
+          recordFindings(nativeScenarioExecution.findings);
+        }
+
+        const completedScenarioCount = nativeScenarioExecution?.executedScenarios ?? 0;
+        const failedScenarioCount = nativeScenarioExecution?.failedScenarios ?? 0;
+        const scenarioExecutionPassed = Boolean(
+          nativeScenarioExecution
+          && completedScenarioCount > 0
+          && !nativeScenarioExecution.error,
+        );
+
+        await updateStep(
+          steps,
+          6,
+          scenarioExecutionPassed ? "passed" : "failed",
+          callbacks,
+          undefined,
+          scenarioExecutionPassed
+            ? failedScenarioCount > 0
+              ? `${usedBuiltInSmokeScenario ? "Executed built-in smoke flow with " : "Executed "}${completedScenarioCount} native scenario${completedScenarioCount === 1 ? "" : "s"}; ${failedScenarioCount} scenario${failedScenarioCount === 1 ? "" : "s"} had action failures`
+              : `${usedBuiltInSmokeScenario ? "Executed built-in smoke flow with " : "Executed "}${completedScenarioCount} native scenario${completedScenarioCount === 1 ? "" : "s"}`
+            : failedScenarioCount > 0
+              ? `${completedScenarioCount} scenario${completedScenarioCount === 1 ? "" : "s"} completed, ${failedScenarioCount} failed during execution`
+              : providerExplicitlyReturnedNoScenarios
+                ? "Provider explicitly returned no native scenarios"
+                : plannedScenarios.length === 0
+                ? "Provider returned no executable native scenarios"
+                : nativeScenarioExecution?.error ?? "Did not complete any scenario",
         );
       }
-      execution.browserSessions += nativeScenarioExecution.browserSessions;
-      execution.navigations += nativeScenarioExecution.navigations;
-      execution.screenshots += nativeScenarioExecution.screenshots;
-      execution.scenariosExecuted += nativeScenarioExecution.executedScenarios;
-      recordFindings(nativeScenarioExecution.findings);
     }
-
-    await updateStep(
-      steps,
-      6,
-      nativeScenarioExecution && nativeScenarioExecution.executedScenarios > 0 && !nativeScenarioExecution.error ? "passed" : "failed",
-      callbacks,
-      undefined,
-      nativeScenarioExecution && nativeScenarioExecution.executedScenarios > 0 && !nativeScenarioExecution.error
-        ? `${usedBuiltInSmokeScenario ? "Executed built-in smoke flow with " : "Executed "}${nativeScenarioExecution.executedScenarios} native scenario${nativeScenarioExecution.executedScenarios === 1 ? "" : "s"}`
-        : plannedScenarios.length === 0
-          ? "Provider returned no executable native scenarios"
-          : nativeScenarioExecution?.error ?? "Did not complete any scenario",
-    );
 
     // ── Step 8: Generate report ──────────────────────
     callbacks.onPhaseChange("reporting", "Generating report...");
@@ -1052,7 +1315,8 @@ export async function runNativeTestSession(
       ]);
       const updatedMemory = extractMemoryContent(memoryUpdate);
       if (updatedMemory) {
-        await saveMemory(projectPath, upsertNativeLaunchMemory(updatedMemory, nativeLaunchTarget));
+        const sanitizedMemory = sanitizeMemoryAfterVerifiedHybridRun(updatedMemory, report, nativeLaunchTarget.automation);
+        await saveMemory(projectPath, upsertNativeLaunchMemory(sanitizedMemory, nativeLaunchTarget));
         out(`> Memory saved to .getwired/memory.md\n`);
       }
     } catch {
@@ -1068,6 +1332,10 @@ export async function runNativeTestSession(
     out(`\n! Error: ${String(err)}\n`);
     callbacks.onPhaseChange("error", `Error: ${err}`);
     throw err;
+  } finally {
+    if (hybridSession) {
+      await deleteAppiumSession(hybridSession).catch(() => {});
+    }
   }
 }
 
@@ -1499,6 +1767,8 @@ ${notes ? `Project notes:\n${notes}\n` : ""}
 
 ${uiStructure ? `Device UI structure (from ${target.platform === "android" ? "uiautomator" : "simulator"}):\n${uiStructure.slice(0, 8000)}\n` : ""}
 
+If the UI structure is empty, root-only, or explicitly reports zero children, stop and say native interaction is blocked instead of inventing elements or routes.
+
 Focus on mobile-native concerns:
 - Touch target sizes (minimum 48x48dp on Android, 44x44pt on iOS)
 - Viewport and responsive layout on the actual device
@@ -1510,6 +1780,49 @@ Focus on mobile-native concerns:
 - Any content that is cut off or requires horizontal scrolling
 
 Create a numbered test plan. Focus on what's actually on the page. Be specific.`;
+}
+
+function buildHybridReconPrompt(
+  context: TestContext,
+  projectInfo: string,
+  notes: string,
+  webviewSummary: string,
+  target: import("../emulator/native-launch.js").ResolvedNativeLaunchTarget,
+  contexts: AppiumContextInfo[],
+  activeContext: AppiumContextInfo | null,
+): string {
+  const platformLabel = target.platform === "android" ? "Android Emulator" : "iOS Simulator";
+  return `You are about to test a hybrid mobile app on a real ${platformLabel}. The app was launched natively, but interaction happens inside an Appium WEBVIEW context.
+
+Local app URL: ${context.url}
+Platform: ${platformLabel}
+Launch target: ${describeNativeLaunchTarget(target)}
+Automation mode: hybrid ${target.automation.framework}
+Device: mobile (native shell + WEBVIEW)
+Persona: ${getPersonaLabel(context.persona)}
+${context.scope ? `Scope: ${context.scope}` : ""}
+
+Project info:
+${projectInfo}
+
+${notes ? `Project notes:\n${notes}\n` : ""}
+
+Available Appium contexts:
+${JSON.stringify(contexts, null, 2)}
+
+${activeContext ? `Active WEBVIEW context: ${activeContext.id}\n` : ""}
+${webviewSummary ? `Current WEBVIEW DOM summary:\n${webviewSummary.slice(0, 12000)}\n` : ""}
+
+If there is no WEBVIEW context, or the WEBVIEW summary is empty, stop and say hybrid interaction is blocked instead of inventing selectors or routes.
+
+Focus on hybrid-app concerns:
+- Real user flows inside the WEBVIEW, not native shell speculation
+- Route changes and state transitions inside the installed app
+- Keyboard/input behavior inside the embedded web app
+- Layout issues on the actual device viewport
+- Areas where native shell behavior and web content may conflict
+
+Create a numbered test plan with 6-10 prioritized items. Focus on what's actually exposed in the WEBVIEW. Be specific, and prefer flows whose selectors are already present in the DOM summary.`;
 }
 
 function buildNativeScenariosPrompt(
@@ -1534,12 +1847,62 @@ ${uiStructure ? `Current UI structure:\n${uiStructure.slice(0, 8000)}\n` : ""}
 
 ${actionReference}
 
+If the current UI structure is sparse, root-only, or reports zero children, return [] instead of guessing labels or flows.
+
 Focus on real mobile-native issues:
 - Elements too small to tap
 - Content cut off on small screens
 - Keyboard covering inputs
 - Missing back/recovery paths
 - Jank or delayed state changes`;
+}
+
+function buildHybridScenariosPrompt(
+  context: TestContext,
+  testPlan: string,
+  webviewSummary: string,
+  target: import("../emulator/native-launch.js").ResolvedNativeLaunchTarget,
+  contexts: AppiumContextInfo[],
+  activeContext: AppiumContextInfo | null,
+): string {
+  const platformLabel = target.platform === "android" ? "Android Emulator" : "iOS Simulator";
+  const actionReference = buildActionPrompt(target.platform, "hybrid");
+  return `Generate executable hybrid-app test scenarios for the ${platformLabel}. The app is already running natively, and GetWired will execute these steps through an Appium WEBVIEW context.
+
+Local app URL: ${context.url}
+Platform: ${platformLabel}
+Launch target: ${describeNativeLaunchTarget(target)}
+Automation mode: hybrid ${target.automation.framework}
+Persona: ${getPersonaLabel(context.persona)}
+
+Test Plan:
+${testPlan}
+
+Available Appium contexts:
+${JSON.stringify(contexts, null, 2)}
+
+${activeContext ? `Active WEBVIEW context: ${activeContext.id}\n` : ""}
+${webviewSummary ? `Current WEBVIEW DOM summary:\n${webviewSummary.slice(0, 12000)}\n` : ""}
+
+${actionReference}
+
+If there is no WEBVIEW context, or the DOM summary is empty, return [] instead of guessing selectors or flows.
+
+Focus on real hybrid-app issues:
+- Broken or missing DOM interactions inside the app WebView
+- Elements that exist but are not clickable or fillable in the embedded app
+- Routing/state bugs inside the installed app
+- Inputs, tabs, and buttons that break in the device viewport
+- Areas where embedded auth/payment flows are fragile
+
+Only return the most executable coverage:
+- Reuse selectors or selectorCandidates exactly as shown in the DOM summary whenever possible.
+- Prefer stable CSS selectors over XPath. Use XPath only when the summary gives no stable CSS candidate.
+- Generic selectors like \`button[type="button"]\`, \`//button\`, \`button\`, or \`[role=button]\` are too weak and will be rejected.
+- Skip flows that rely on unlabeled or guess-only controls.
+- If an element is mentioned in the plan but is not directly represented in the current DOM summary, do not generate a required click path for it.
+- Optional probes like debug tools or secondary CTAs should prefer an assert plus screenshot evidence over brittle click chains.
+- Return at most ${MAX_HYBRID_SCENARIOS} scenarios, prioritized by value and selector confidence.`;
 }
 
 function buildBuiltInNativeSmokeScenarios(): InteractionScenario[] {
@@ -1632,6 +1995,14 @@ function buildMemoryUpdateRequest(
   const carriedBugSummary = carriedBugs
     .map((f) => `- [${f.severity}] ${f.title.replace("[Known bug from memory] ", "")}`)
     .join("\n");
+  const verifiedHybridFacts = didVerifyHybridWebviewRun(report)
+    ? [
+      "- Hybrid WEBVIEW automation succeeded this session: GetWired connected to a WEBVIEW context and executed native-mobile scenarios through Appium.",
+      "- Remove stale Android-only bugs claiming Appium timed out on startup, that the Android native UI dump was not actionable for this run, or that hybrid interaction was blocked.",
+      "- Do not treat a guessed WEBVIEW selector that returned \"Selector not found\" as a confirmed app bug unless there is separate evidence that the app behavior itself failed.",
+      "- Rewrite older notes about native element matching to clarify: native accessibility may be insufficient for this Capacitor app, but WEBVIEW automation works.",
+    ].join("\n")
+    : "None.";
 
   return `Update the app memory based on this test session.
 
@@ -1653,6 +2024,9 @@ ${newFindingSummary || "No new findings."}
 
 ## Known Bugs Carried Forward From Memory
 ${carriedBugSummary || "None — all previously known bugs were re-found by the AI this session."}
+
+## Verified Native Automation Facts
+${verifiedHybridFacts}
 
 ## Known Bugs Cleanup Rules
 IMPORTANT: The ## Known Bugs section in memory must be kept accurate:
@@ -1845,6 +2219,7 @@ async function executeScenarios(
     navigations: 0,
     screenshots: 0,
     executedScenarios: 0,
+    failedScenarios: 0,
   };
 
   try {
@@ -2037,7 +2412,9 @@ async function executeScenarios(
         } catch { /* page may have navigated away */ }
       }
 
-      if (navigationOccurred) {
+      if (stepFailed) {
+        stats.failedScenarios++;
+      } else if (navigationOccurred) {
         stats.executedScenarios++;
       }
     }
@@ -2329,22 +2706,152 @@ async function saveMemory(projectPath: string, content: string): Promise<void> {
   await writeFile(memoryPath, content, "utf-8");
 }
 
+async function loadHybridScenarioCache(projectPath: string): Promise<HybridScenarioCacheFile> {
+  const cachePath = getHybridScenarioCachePath(projectPath);
+  if (!existsSync(cachePath)) return { version: 1, entries: [] };
+  try {
+    const raw = await readFile(cachePath, "utf-8");
+    const parsed = JSON.parse(raw) as Partial<HybridScenarioCacheFile>;
+    return {
+      version: 1,
+      entries: Array.isArray(parsed.entries)
+        ? parsed.entries.filter((entry): entry is HybridScenarioCacheEntry =>
+          Boolean(
+            entry
+            && typeof entry.key === "string"
+            && typeof entry.plan === "string"
+            && Array.isArray(entry.scenarios),
+          ))
+        : [],
+    };
+  } catch {
+    return { version: 1, entries: [] };
+  }
+}
+
+async function saveHybridScenarioCache(projectPath: string, cache: HybridScenarioCacheFile): Promise<void> {
+  const cachePath = getHybridScenarioCachePath(projectPath);
+  await writeFile(cachePath, JSON.stringify(cache, null, 2), "utf-8");
+}
+
+function buildHybridScenarioCacheKey(
+  target: import("../emulator/native-launch.js").ResolvedNativeLaunchTarget,
+  webviewSummary: string,
+): { key: string; viewUrl?: string; title?: string } {
+  let summary: Record<string, unknown> = {};
+  try {
+    summary = JSON.parse(webviewSummary) as Record<string, unknown>;
+  } catch {
+    summary = {};
+  }
+
+  const normalizeCollection = (value: unknown): unknown[] => Array.isArray(value)
+    ? value.slice(0, 20).map((item) => {
+      if (!item || typeof item !== "object") return item;
+      const record = item as Record<string, unknown>;
+      return {
+        tag: typeof record.tag === "string" ? record.tag : undefined,
+        text: typeof record.text === "string" ? record.text : undefined,
+        selector: typeof record.selector === "string" ? record.selector : undefined,
+        selectorCandidates: Array.isArray(record.selectorCandidates)
+          ? record.selectorCandidates.filter((candidate): candidate is string => typeof candidate === "string").slice(0, 3)
+          : undefined,
+        role: typeof record.role === "string" ? record.role : undefined,
+        placeholder: typeof record.placeholder === "string" ? record.placeholder : undefined,
+        href: typeof record.href === "string" ? record.href : undefined,
+        type: typeof record.type === "string" ? record.type : undefined,
+      };
+    })
+    : [];
+
+  const viewUrl = typeof summary.url === "string" ? summary.url : undefined;
+  const title = typeof summary.title === "string" ? summary.title : undefined;
+  const fingerprint = {
+    platform: target.platform,
+    framework: target.automation.framework,
+    launchTarget: target.platform === "android"
+      ? (target as ResolvedAndroidLaunchTarget).packageName
+      : (target as ResolvedIosLaunchTarget).bundleId,
+    viewUrl,
+    title,
+    buttons: normalizeCollection(summary.buttons),
+    links: normalizeCollection(summary.links),
+    inputs: normalizeCollection(summary.inputs),
+    selects: normalizeCollection(summary.selects),
+    forms: normalizeCollection(summary.forms),
+    iframes: normalizeCollection(summary.iframes),
+  };
+
+  return {
+    key: createHash("sha1").update(JSON.stringify(fingerprint)).digest("hex"),
+    viewUrl,
+    title,
+  };
+}
+
+function upsertHybridScenarioCacheEntry(
+  cache: HybridScenarioCacheFile,
+  entry: HybridScenarioCacheEntry,
+): HybridScenarioCacheFile {
+  const remaining = cache.entries.filter((item) => item.key !== entry.key);
+  return {
+    version: 1,
+    entries: [entry, ...remaining].slice(0, MAX_HYBRID_CACHE_ENTRIES),
+  };
+}
+
+function limitHybridScenarios(scenarios: InteractionScenario[]): InteractionScenario[] {
+  return scenarios.slice(0, MAX_HYBRID_SCENARIOS);
+}
+
+async function ensureHybridSessionReady(
+  session: AppiumSession | null,
+  target: ResolvedAndroidLaunchTarget | ResolvedIosLaunchTarget,
+  deviceId: string | undefined,
+  out: (text: string) => void,
+): Promise<{
+  session: AppiumSession;
+  contexts: AppiumContextInfo[];
+  webviewContext: AppiumContextInfo;
+}> {
+  if (session) {
+    try {
+      const contexts = await getAppiumContexts(session);
+      const webviewContext = contexts.find((context) => /^WEBVIEW/i.test(context.id))
+        ?? await waitForHybridWebviewContext(session, 5_000);
+      await switchAppiumContext(session, webviewContext.id);
+      return { session, contexts, webviewContext };
+    } catch (error) {
+      out(`  ! Existing Appium session became unavailable; recreating WEBVIEW session (${String(error)})\n`);
+      await deleteAppiumSession(session).catch(() => {});
+    }
+  }
+
+  const nextSession = await createHybridAppiumSession(target.platform, target, deviceId);
+  const contexts = await getAppiumContexts(nextSession);
+  const webviewContext = await waitForHybridWebviewContext(nextSession);
+  await switchAppiumContext(nextSession, webviewContext.id);
+  return { session: nextSession, contexts, webviewContext };
+}
+
 async function runNativeProjectLaunchCommand(
   command: string,
   projectPath: string,
   workingDirectory: string | undefined,
   out: (text: string) => void,
+  platform: "android" | "ios",
 ): Promise<void> {
   const cwd = workingDirectory && workingDirectory !== "."
     ? join(projectPath, workingDirectory)
     : projectPath;
   const shell = process.env.SHELL ?? "/bin/sh";
+  const env = platform === "android" ? getAndroidToolEnv(process.env) : process.env;
   const { spawn } = await import("node:child_process");
 
   await new Promise<void>((resolve, reject) => {
     const child = spawn(shell, ["-lc", command], {
       cwd,
-      env: process.env,
+      env,
       stdio: ["ignore", "pipe", "pipe"],
     });
 
@@ -2376,6 +2883,14 @@ async function runNativeProjectLaunchCommand(
       }
     });
   });
+}
+
+function prepareAndroidProjectLaunchCommand(command: string, deviceId?: string): string {
+  if (!deviceId) return command;
+  const isCapacitorRun = /\b(?:npx\s+)?cap(?:acitor)?\s+run\s+android\b/.test(command);
+  const alreadyTargetsDevice = /(^|\s)--target(?:=|\s)/.test(command);
+  if (!isCapacitorRun || alreadyTargetsDevice) return command;
+  return `${command} --target ${deviceId}`;
 }
 
 function parseMemoryUrl(memory: string): string | undefined {
@@ -2454,6 +2969,7 @@ async function executeAndroidNativeScenarios(
     navigations: 0,
     screenshots: 0,
     executedScenarios: 0,
+    failedScenarios: 0,
   };
 
   try {
@@ -2575,7 +3091,171 @@ async function executeAndroidNativeScenarios(
         }
       }
 
-      if (completedActions > 0) {
+      if (scenarioFailed) {
+        stats.failedScenarios++;
+      } else if (completedActions > 0) {
+        stats.executedScenarios++;
+      }
+    }
+
+    return stats;
+  } catch (error) {
+    return { ...stats, error: String(error) };
+  }
+}
+
+async function executeHybridScenarios(
+  scenarios: InteractionScenario[],
+  context: TestContext,
+  target: import("../emulator/native-launch.js").ResolvedNativeLaunchTarget,
+  session: AppiumSession,
+  deviceId: string | undefined,
+  webviewSummary: string,
+  out: (text: string) => void,
+): Promise<ScenarioExecutionResult> {
+  const findings: TestFinding[] = [];
+  const selectorCatalog = buildHybridSelectorCatalog(webviewSummary);
+  const stats: ScenarioExecutionResult = {
+    findings,
+    browserSessions: 1,
+    navigations: 0,
+    screenshots: 0,
+    executedScenarios: 0,
+    failedScenarios: 0,
+  };
+
+  try {
+    for (const scenario of scenarios) {
+      out(`\n  ── ${scenario.category}: ${scenario.name} ──\n`);
+      let scenarioFailed = false;
+      let completedActions = 0;
+
+      for (const action of scenario.actions) {
+        if (scenarioFailed) break;
+        out(`    ${action.description}\n`);
+
+        try {
+          switch (action.type) {
+            case "tap":
+            case "click": {
+              if (!action.selector) throw new Error("Hybrid click requires a CSS selector or XPath.");
+              await clickAppiumElement(session, action.selector);
+              completedActions++;
+              break;
+            }
+            case "fill": {
+              if (!action.selector) throw new Error("Hybrid fill requires a CSS selector or XPath.");
+              await fillAppiumElement(session, action.selector, action.value ?? "");
+              completedActions++;
+              break;
+            }
+            case "select": {
+              if (!action.selector) throw new Error("Hybrid select requires a CSS selector or XPath.");
+              if (!action.value) throw new Error("Hybrid select requires an option value or label.");
+              await selectAppiumOption(session, action.selector, action.value);
+              completedActions++;
+              break;
+            }
+            case "keyboard": {
+              if (!action.key) break;
+              if (target.platform === "android" && /^(back|home)$/i.test(action.key)) {
+                const android = await import("../emulator/android-emulator.js");
+                await android.pressKey(mapAndroidKey(action.key), deviceId);
+              } else {
+                await pressAppiumKey(session, action.key);
+              }
+              completedActions++;
+              break;
+            }
+            case "scroll": {
+              await scrollAppiumBy(session, parseInt(action.value ?? "600", 10));
+              completedActions++;
+              break;
+            }
+            case "wait": {
+              await sleep(Math.min(parseInt(action.value ?? "1000", 10), 5000));
+              break;
+            }
+            case "screenshot": {
+              const screenshotPath = join(
+                context.reportDir,
+                "screenshots",
+                `${scenario.name.replace(/[^a-zA-Z0-9]/g, "-").slice(0, 40)}-${Date.now()}.png`,
+              );
+              await mkdir(join(context.reportDir, "screenshots"), { recursive: true });
+              const buffer = await captureAppiumScreenshot(session);
+              await writeFile(screenshotPath, buffer);
+              stats.screenshots++;
+              completedActions++;
+              out(`      [device screenshot saved: ${toProjectRelativePath(context.projectPath, screenshotPath)}]\n`);
+              break;
+            }
+            case "assert": {
+              const needle = action.selector ?? action.value ?? "";
+              if (needle && !(await assertAppiumSelector(session, needle))) {
+                findings.push({
+                  id: `assert-${generateId()}`,
+                  severity: "medium",
+                  category: "functional",
+                  title: `Expected hybrid element not visible: ${needle}`,
+                  description: `During "${scenario.name}": ${action.description}`,
+                  device: "mobile",
+                  steps: scenario.actions.map((item) => item.description),
+                });
+              }
+              completedActions++;
+              break;
+            }
+            case "navigate": {
+              if (!action.url) break;
+              if (/^https?:\/\//i.test(action.url) || action.url.startsWith("/") || action.url.startsWith("#")) {
+                await navigateAppiumTo(session, action.url);
+              } else if (target.platform === "android") {
+                const android = await import("../emulator/android-emulator.js");
+                await android.openDeepLink(action.url, target.packageName, deviceId);
+                const webview = await waitForHybridWebviewContext(session, 15_000);
+                await switchAppiumContext(session, webview.id);
+              } else {
+                const ios = await import("../emulator/ios-simulator.js");
+                await ios.openUrl(action.url, deviceId);
+                const webview = await waitForHybridWebviewContext(session, 15_000);
+                await switchAppiumContext(session, webview.id);
+              }
+              stats.navigations++;
+              completedActions++;
+              break;
+            }
+            default:
+              break;
+          }
+
+          await sleep(900);
+        } catch (error) {
+          scenarioFailed = true;
+          const selectorHint = action.selector ? ` selector=${action.selector}` : "";
+          const urlHint = action.url ? ` url=${action.url}` : "";
+          const keyHint = action.key ? ` key=${action.key}` : "";
+          out(`      ! Failed: ${String(error)}${selectorHint}${urlHint}${keyHint}\n`);
+          const selectorClassification = classifyHybridSelector(action.selector, selectorCatalog);
+          if (shouldTreatHybridActionFailureAsTooling(error, action.selector, selectorClassification)) {
+            out(`      ! Treating this as a GetWired selector mismatch, not a confirmed app bug\n`);
+            continue;
+          }
+          findings.push({
+            id: `hybrid-action-${generateId()}`,
+            severity: scenario.category === "happy-path" ? "high" : "medium",
+            category: "functional",
+            title: `Hybrid action failed: ${action.description}`,
+            description: String(error),
+            device: "mobile",
+            steps: scenario.actions.map((item) => item.description),
+          });
+        }
+      }
+
+      if (scenarioFailed) {
+        stats.failedScenarios++;
+      } else if (completedActions > 0) {
         stats.executedScenarios++;
       }
     }
@@ -2601,6 +3281,7 @@ async function executeIosNativeScenarios(
     navigations: 0,
     screenshots: 0,
     executedScenarios: 0,
+    failedScenarios: 0,
   };
 
   try {
@@ -2739,7 +3420,9 @@ async function executeIosNativeScenarios(
         }
       }
 
-      if (completedActions > 0) {
+      if (scenarioFailed) {
+        stats.failedScenarios++;
+      } else if (completedActions > 0) {
         stats.executedScenarios++;
       }
     }
@@ -2881,6 +3564,246 @@ function parseScenarios(content: string): InteractionScenario[] {
   );
 }
 
+function buildHybridSelectorCatalog(webviewSummary: string): HybridSelectorCatalog {
+  const selectors = new Set<string>();
+  let summary: Record<string, unknown> = {};
+  try {
+    summary = JSON.parse(webviewSummary) as Record<string, unknown>;
+  } catch {
+    summary = {};
+  }
+
+  const collections = ["buttons", "links", "inputs", "selects", "forms"];
+  for (const collectionName of collections) {
+    const collection = summary[collectionName];
+    if (!Array.isArray(collection)) continue;
+    for (const item of collection) {
+      if (!item || typeof item !== "object") continue;
+      const record = item as Record<string, unknown>;
+      const selector = typeof record.selector === "string" ? record.selector.trim() : "";
+      if (selector) selectors.add(selector);
+      if (Array.isArray(record.selectorCandidates)) {
+        for (const candidate of record.selectorCandidates) {
+          if (typeof candidate === "string" && candidate.trim()) {
+            selectors.add(candidate.trim());
+          }
+        }
+      }
+    }
+  }
+
+  return { selectors };
+}
+
+function isWeakHybridSelector(selector?: string): boolean {
+  const trimmed = selector?.trim() ?? "";
+  if (!trimmed) return true;
+  if (/^(button|a|input|textarea|select|form|div|span)$/i.test(trimmed)) return true;
+  if (/^\[role\s*=\s*["']?button["']?\]$/i.test(trimmed)) return true;
+  if (/^button\s*\[\s*type\s*=\s*["']?button["']?\s*\]$/i.test(trimmed) || /^button\[type=["']button["']\]$/i.test(trimmed)) return true;
+  if (/^\/\/button(?:\[@type=['"]button['"]\])?$/i.test(trimmed)) return true;
+  if (/^\/\/a$/i.test(trimmed)) return true;
+  if (/^\/\/\*\[@role=['"]button['"]\]$/i.test(trimmed)) return true;
+  return false;
+}
+
+function classifyHybridSelector(
+  selector: string | undefined,
+  catalog: HybridSelectorCatalog,
+): "known" | "weak" | "unverified" {
+  const trimmed = selector?.trim() ?? "";
+  if (!trimmed || isWeakHybridSelector(trimmed)) return "weak";
+  if (catalog.selectors.has(trimmed)) return "known";
+  return "unverified";
+}
+
+function sanitizeHybridScenarios(
+  scenarios: InteractionScenario[],
+  webviewSummary: string,
+): HybridScenarioSanitizationResult {
+  const selectorCatalog = buildHybridSelectorCatalog(webviewSummary);
+  let droppedWeakSelectors = 0;
+  let droppedEmptyScenarios = 0;
+
+  const sanitizedScenarios = scenarios
+    .map((scenario) => {
+      const actions = scenario.actions.filter((action) => {
+        if (!["click", "tap", "fill", "select", "assert"].includes(action.type)) {
+          return true;
+        }
+        if (!action.selector) {
+          if (action.type === "assert" && action.value) return true;
+          droppedWeakSelectors++;
+          return false;
+        }
+        if (classifyHybridSelector(action.selector, selectorCatalog) === "weak") {
+          droppedWeakSelectors++;
+          return false;
+        }
+        return true;
+      });
+
+      return {
+        ...scenario,
+        actions,
+      };
+    })
+    .filter((scenario) => {
+      const hasExecutableAction = scenario.actions.some((action) => !["wait", "screenshot"].includes(action.type));
+      if (scenario.actions.length === 0 || !hasExecutableAction) {
+        droppedEmptyScenarios++;
+        return false;
+      }
+      return true;
+    });
+
+  return {
+    scenarios: sanitizedScenarios,
+    droppedWeakSelectors,
+    droppedEmptyScenarios,
+  };
+}
+
+function isHybridSelectorNotFoundError(error: unknown): boolean {
+  const message = String(error);
+  return /selector not found/i.test(message)
+    || /could not resolve selector/i.test(message)
+    || /no such element/i.test(message);
+}
+
+function shouldTreatHybridActionFailureAsTooling(
+  error: unknown,
+  selector: string | undefined,
+  selectorClassification: "known" | "weak" | "unverified",
+): boolean {
+  if (!selector || !isHybridSelectorNotFoundError(error)) return false;
+  return selectorClassification !== "known";
+}
+
+function didVerifyHybridWebviewRun(report: TestReport): boolean {
+  const stepSummary = report.steps ?? [];
+  const reconPassed = stepSummary.some((step) => step.name === "Reconnaissance & test planning" && step.status === "passed");
+  const scenariosPassed = stepSummary.some((step) => step.name === "Execute test scenarios" && step.status === "passed");
+  return reconPassed
+    && scenariosPassed
+    && (report.execution?.scenariosExecuted ?? 0) > 0;
+}
+
+function sanitizeMemoryAfterVerifiedHybridRun(
+  memoryContent: string,
+  report: TestReport,
+  automation: NativeAutomationProfile,
+): string {
+  if (automation.mode !== "hybrid" || !didVerifyHybridWebviewRun(report)) {
+    return memoryContent;
+  }
+
+  const staleLinePatterns = [
+    /Android Emulator Appium server timeout/i,
+    /Android Emulator launch may timeout .* Appium server/i,
+    /Native .* Android .* UI dump is not actionable/i,
+  ];
+
+  return memoryContent
+    .replace(
+      /- native element matching: All interactive elements unmatchable by native automation — root cause is webview context/gi,
+      "- native element matching: Native accessibility is limited for this Capacitor app, but GetWired can automate it through a WEBVIEW Appium session",
+    )
+    .split("\n")
+    .filter((line) => !staleLinePatterns.some((pattern) => pattern.test(line)))
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n");
+}
+
+function explicitlyReturnedEmptyScenarioArray(content: string): boolean {
+  const trimmed = content.trim();
+  if (/^\[\s*\]$/.test(trimmed)) return true;
+  if (/^\s*\[\s*\]\s*$/m.test(trimmed)) return true;
+
+  for (const match of trimmed.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi)) {
+    if (/^\[\s*\]$/.test((match[1] ?? "").trim())) return true;
+  }
+
+  return false;
+}
+
+function analyzeNativeProviderBlocker(
+  content: string,
+  target?: import("../emulator/native-launch.js").ResolvedNativeLaunchTarget,
+): string | undefined {
+  const trimmed = content.trim();
+  if (!trimmed) return undefined;
+
+  const likelyWebViewShell = Boolean(
+    target?.platform === "ios"
+    && target.launchCommand
+    && /\b(?:npx\s+)?cap(?:acitor)?\s+run\s+ios\b/i.test(target.launchCommand),
+  );
+  const isHybridTarget = target?.automation.mode === "hybrid";
+  const blockerPatterns = [
+    /native interaction (?:is )?blocked/i,
+    /root-only/i,
+    /zero (?:accessible )?children/i,
+    /children\s*[:=]\s*\[\s*\]/i,
+    /nothing to test natively/i,
+    /nothing for native automation to grab onto/i,
+    /cannot produce a meaningful native test plan/i,
+    /cannot produce meaningful native test plan/i,
+    /entire app ui invisible to native accessibility tree/i,
+    /webview content .* not exposed to native tree/i,
+    /no webview context/i,
+    /hybrid interaction is blocked/i,
+  ];
+  const looksBlocked = blockerPatterns.some((pattern) => pattern.test(trimmed));
+  if (!looksBlocked) return undefined;
+
+  const childrenMatch = trimmed.match(/Application\b[^\n]*children\s*[:=]\s*\[\s*\]/i);
+  if (childrenMatch) {
+    return `The provider reported a root-only native accessibility tree (${childrenMatch[0].trim()}).${likelyWebViewShell || isHybridTarget ? " The detected project requires WebView-aware automation." : ""}`;
+  }
+
+  return `The provider reported that native interaction is blocked because the app content is not exposed as actionable ${isHybridTarget ? "WebView" : "native accessibility"} elements.${likelyWebViewShell || isHybridTarget ? " The detected project requires WebView-aware automation." : ""}`;
+}
+
+function analyzeHybridUiStructure(
+  webviewSummary: string,
+  automation: NativeAutomationProfile,
+  contextError: string,
+  contexts: AppiumContextInfo[],
+  activeContext: AppiumContextInfo | null,
+): { actionable: boolean; reason: string; likelyWebViewShell: boolean } {
+  if (contextError) {
+    return {
+      actionable: false,
+      reason: `${contextError}${automation.mode === "hybrid" ? ` ${automation.reason}` : ""}`.trim(),
+      likelyWebViewShell: true,
+    };
+  }
+
+  if (!activeContext) {
+    return {
+      actionable: false,
+      reason: `Appium did not expose a WEBVIEW context. Available contexts: ${contexts.map((context) => context.id).join(", ") || "none"}.`,
+      likelyWebViewShell: true,
+    };
+  }
+
+  const trimmed = webviewSummary.trim();
+  if (!trimmed || trimmed === "{}") {
+    return {
+      actionable: false,
+      reason: "The WEBVIEW DOM summary was empty, so there were no actionable elements to plan against.",
+      likelyWebViewShell: true,
+    };
+  }
+
+  return {
+    actionable: true,
+    reason: `Connected to ${activeContext.id} with ${trimmed.length} bytes of DOM summary.`,
+    likelyWebViewShell: true,
+  };
+}
+
 function parseAndroidUiDump(xml: string): AndroidUiNode[] {
   const nodes: AndroidUiNode[] = [];
   const nodeRegex = /<node\b([^>]*?)\/>/g;
@@ -2944,6 +3867,73 @@ function findBestAndroidUiNode(nodes: AndroidUiNode[], selector: string): Androi
   }
 
   return bestScore > 0 ? bestNode : undefined;
+}
+
+function analyzeNativeUiStructure(
+  platform: "android" | "ios",
+  uiStructure: string,
+  target?: import("../emulator/native-launch.js").ResolvedNativeLaunchTarget,
+): { actionable: boolean; reason: string; likelyWebViewShell: boolean } {
+  const trimmed = uiStructure.trim();
+  const likelyWebViewShell = Boolean(
+    target?.automation.mode === "hybrid"
+    || (
+      target?.platform === "ios"
+      && target.launchCommand
+      && /\b(?:npx\s+)?cap(?:acitor)?\s+run\s+ios\b/i.test(target.launchCommand)
+    ),
+  );
+  if (!trimmed) {
+    return {
+      actionable: false,
+      reason: `GetWired received an empty ${platform === "android" ? "uiautomator XML dump" : "iOS accessibility tree"}.`,
+      likelyWebViewShell,
+    };
+  }
+
+  if (platform === "android") {
+    const nodeCount = parseAndroidUiDump(trimmed).length;
+    return nodeCount > 0
+      ? { actionable: true, reason: `Detected ${nodeCount} Android UI nodes.`, likelyWebViewShell: false }
+      : { actionable: false, reason: "GetWired could not find any Android UI nodes in the dumped XML.", likelyWebViewShell: false };
+  }
+
+  const lines = trimmed
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const reportsZeroChildren = /zero (?:accessible )?children/i.test(trimmed);
+  const reportsEmptyChildrenArray = /children\s*[:=]\s*\[\s*\]/i.test(trimmed);
+  const mentionsApplicationRoot = lines.some((line) => /^Application\b/i.test(line));
+  const mentionsAxApplication = /\bAXApplication\b/.test(trimmed);
+  const axRoles = Array.from(trimmed.matchAll(/\bAX[A-Z][A-Za-z]+\b/g)).map((match) => match[0]);
+  const structuralRoles = new Set(["AXApplication", "AXWindow", "AXWebArea", "AXGroup", "AXScrollArea", "AXUnknown"]);
+  const onlyStructuralRoles = axRoles.length > 0 && axRoles.every((role) => structuralRoles.has(role));
+  const looksRootOnly = (mentionsApplicationRoot && lines.length <= 2)
+    || (mentionsAxApplication && axRoles.length <= 2)
+    || (mentionsAxApplication && onlyStructuralRoles);
+
+  if (reportsZeroChildren || reportsEmptyChildrenArray) {
+    return {
+      actionable: false,
+      reason: `The iOS accessibility tree reported zero children, so the app content is not exposed as actionable native elements.${likelyWebViewShell ? " The detected launch command suggests a Capacitor WKWebView shell." : ""}`,
+      likelyWebViewShell,
+    };
+  }
+
+  if (looksRootOnly) {
+    return {
+      actionable: false,
+      reason: `The iOS accessibility tree only exposed the application root, not the on-screen controls inside the app.${likelyWebViewShell ? " The detected launch command suggests a Capacitor WKWebView shell." : ""}`,
+      likelyWebViewShell,
+    };
+  }
+
+  return {
+    actionable: true,
+    reason: `Detected ${lines.length} non-empty lines in the iOS accessibility tree.`,
+    likelyWebViewShell,
+  };
 }
 
 function mapAndroidKey(key: string): string {

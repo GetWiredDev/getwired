@@ -63,13 +63,14 @@ export default function Home() {
   ╚═════╝ ╚══════╝   ╚═╝    ╚══╝╚══╝ ╚═╝╚═╝  ╚═╝╚══════╝╚═════╝`}
         </pre>
         <h1 className="mt-4 font-mono text-base tracking-wide text-emerald-300/70 md:text-lg">
-          The CLI that tests your app like a crazy QA tester
+          The CLI that tests your web and mobile apps like a crazy QA tester
         </h1>
         <p className="mt-3 max-w-xl text-center font-mono text-sm text-emerald-500 leading-relaxed">
-          One command. AI opens your app in a browser, clicks everything,
-          types garbage into every field, rage-refreshes, finds that one XSS
-          you swore you fixed, and writes you a report. No test scripts.
-          No config files. Just chaos with a purpose.
+          One command. AI opens your web app in a browser — or your native
+          Android/iOS app in an emulator — clicks everything, types garbage
+          into every field, rage-refreshes, finds that one bug you swore you
+          fixed, and writes you a report. No test scripts. No config files.
+          Just chaos with a purpose.
         </p>
       </header>
 
@@ -159,17 +160,17 @@ export default function Home() {
               <h3 className="font-mono text-sm font-bold text-emerald-300">1. Point It at Your App</h3>
               <p className="mt-3 font-mono text-xs text-emerald-500 leading-relaxed">
                 Run <code className="text-emerald-400">npx getwired init</code> in your project.
-                It detects your framework and dev server. That&apos;s the entire setup.
-                No YAML. No 200-line config. Just go.
+                It detects your framework, dev server, or native mobile platform.
+                That&apos;s the entire setup. No YAML. No 200-line config. Just go.
               </p>
             </article>
             <article className="rounded-lg border border-emerald-500/15 bg-black/40 p-6">
               <h3 className="font-mono text-sm font-bold text-emerald-300">2. AI Goes Full Gremlin</h3>
               <p className="mt-3 font-mono text-xs text-emerald-500 leading-relaxed">
                 Pick your AI (Claude Code, Auggie, Codex, or OpenCode). It opens a
-                real browser and does everything your most chaotic user would —
-                rage-clicks, submits forms with emoji, resizes to 200px, finds
-                your unlocked admin page.
+                real browser or native emulator and does everything your most
+                chaotic user would — rage-clicks, submits forms with emoji,
+                taps random buttons, finds your unlocked admin page.
               </p>
             </article>
             <article className="rounded-lg border border-emerald-500/15 bg-black/40 p-6">

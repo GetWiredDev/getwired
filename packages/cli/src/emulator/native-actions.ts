@@ -19,6 +19,8 @@ export interface NativeActionDef {
   examples: string[];
 }
 
+type AutomationMode = "native" | "hybrid";
+
 const ACTIONS: NativeActionDef[] = [
   {
     type: "tap",
@@ -131,7 +133,11 @@ export function isValidAction(type: string, platform: NativePlatform): boolean {
 }
 
 // Generate the action reference section for AI prompts
-export function buildActionPrompt(platform: NativePlatform): string {
+export function buildActionPrompt(platform: NativePlatform, mode: AutomationMode = "native"): string {
+  if (mode === "hybrid") {
+    return buildHybridActionPrompt(platform);
+  }
+
   const actions = getActionsForPlatform(platform);
   const platformLabel = platform === "android" ? "Android Emulator" : "iOS Simulator";
 
@@ -176,13 +182,83 @@ export function buildActionPrompt(platform: NativePlatform): string {
   return lines.join("\n");
 }
 
+function buildHybridActionPrompt(platform: NativePlatform): string {
+  const platformLabel = platform === "android" ? "Android Emulator" : "iOS Simulator";
+  return [
+    `## Available Hybrid Actions (${platformLabel} via Appium WEBVIEW)`,
+    "",
+    "The app is a hybrid WebView shell. Interactions happen inside a WEBVIEW context through Appium.",
+    "You MUST only use action types from this list. Any other action type will be rejected.",
+    "",
+    "### `click`",
+    "Click an element inside the WEBVIEW using a CSS selector or XPath selector.",
+    "Example: { \"type\": \"click\", \"selector\": \"button[type=\\\"submit\\\"]\", \"description\": \"Submit the form\" }",
+    "",
+    "### `tap`",
+    "Alias for click. Use only if the control behaves like a tap target.",
+    "Example: { \"type\": \"tap\", \"selector\": \"[data-testid=\\\"nav-chat\\\"]\", \"description\": \"Open chat tab\" }",
+    "",
+    "### `fill`",
+    "Fill a WEBVIEW input or textarea using a CSS selector or XPath selector.",
+    "Example: { \"type\": \"fill\", \"selector\": \"input[name=\\\"email\\\"]\", \"value\": \"test@example.com\", \"description\": \"Enter email\" }",
+    "",
+    "### `select`",
+    "Select an option in a `<select>` element using a CSS selector or XPath selector.",
+    "Example: { \"type\": \"select\", \"selector\": \"select[name=\\\"guild\\\"]\", \"value\": \"Knights\", \"description\": \"Choose guild\" }",
+    "",
+    "### `assert`",
+    "Assert that a WEBVIEW element or text is visible. Prefer selectors when possible.",
+    "Example: { \"type\": \"assert\", \"selector\": \"form button[type=\\\"submit\\\"]\", \"description\": \"Verify the submit button is visible\" }",
+    "",
+    "### `scroll`",
+    "Scroll the WEBVIEW vertically by pixel amount. Positive = down, negative = up.",
+    "Example: { \"type\": \"scroll\", \"value\": \"600\", \"description\": \"Scroll down in the current screen\" }",
+    "",
+    "### `navigate`",
+    "Navigate the WEBVIEW to an http(s) URL, an in-app route, or a native deep link if required.",
+    "Example: { \"type\": \"navigate\", \"url\": \"/chat\", \"description\": \"Open the chat route\" }",
+    "",
+    "### `wait`",
+    "Wait for a specified duration in milliseconds (max 5000ms).",
+    "Example: { \"type\": \"wait\", \"value\": \"1000\", \"description\": \"Wait for the app to settle\" }",
+    "",
+    "### `screenshot`",
+    "Capture the current app screen for evidence.",
+    "Example: { \"type\": \"screenshot\", \"description\": \"Capture the current screen\" }",
+    "",
+    "### `keyboard`",
+    "Dispatch a keyboard key inside the WEBVIEW. Only use Enter, Tab, or Escape unless the DOM summary clearly needs it.",
+    "Example: { \"type\": \"keyboard\", \"key\": \"Enter\", \"description\": \"Submit the focused form\" }",
+    "",
+    "## Action JSON Format",
+    "",
+    "Return scenarios as a JSON array:",
+    "```",
+    '[{ "name": "Scenario name", "category": "happy-path|edge-case|abuse|boundary|error-recovery",',
+    '   "actions": [{ "type": "<action-type>", "selector": "...", "value": "...", "key": "...", "url": "...", "description": "What you are doing and why" }] }]',
+    "```",
+    "",
+    "CRITICAL RULES:",
+    "- Use CSS selectors or XPath from the WEBVIEW DOM summary. Reuse `selector` or `selectorCandidates` exactly when they are available. Do NOT use native accessibility labels for hybrid actions.",
+    "- Prefer stable selectors like `#id`, `[data-testid=...]`, `[name=...]`, `[aria-label=...]`, or `[placeholder=...]`.",
+    "- Prefer CSS over XPath. Only use XPath when the DOM summary does not provide a stable CSS candidate.",
+    "- Never use generic selectors like `button`, `button[type=\"button\"]`, `//button`, or `[role=button]` for required actions. Those are too weak and will be rejected.",
+    "- The app is already open inside the native shell. Do NOT begin every scenario with a navigate action unless route/deep-link coverage is the goal.",
+    "- Include at least one `screenshot` action per scenario for evidence.",
+    "- Return ONLY raw JSON. No markdown fences, no prose.",
+  ].join("\n");
+}
+
 // Validate and filter scenarios, removing actions with invalid types.
 // Generic to preserve the caller's scenario type.
 export function validateScenarioActions<T extends { actions: Array<{ type: string }> }>(
   scenarios: T[],
   platform: NativePlatform,
+  mode: AutomationMode = "native",
 ): T[] {
-  const validTypes = getValidActionTypes(platform);
+  const validTypes = mode === "hybrid"
+    ? new Set(["navigate", "click", "tap", "fill", "select", "scroll", "wait", "screenshot", "keyboard", "assert"])
+    : getValidActionTypes(platform);
   return scenarios
     .map((scenario) => ({
       ...scenario,
