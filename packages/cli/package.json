@@ -40,16 +40,17 @@
   ],
   "license": "MIT",
   "dependencies": {
-    "ink": "^6.8.0",
-    "react": "^19.0.0",
+    "@napi-rs/canvas": "^0.1.65",
     "commander": "^13.0.0",
-    "@napi-rs/canvas": "^0.1.65"
+    "ink": "^6.8.0",
+    "playwright": "^1.59.1",
+    "react": "^19.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
-    "typescript": "^5.7.0",
     "tsup": "^8.4.0",
-    "tsx": "^4.19.0"
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
   }
 }

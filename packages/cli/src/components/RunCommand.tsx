@@ -4,9 +4,15 @@ import { Header } from "./Header.js";
 import { StatusBar } from "./StatusBar.js";
 import { TestProgress } from "./TestProgress.js";
 import { ProviderStream } from "./ProviderStream.js";
-import { runTestSession, runNativeTestSession } from "../orchestrator/index.js";
+import { runTestSession, runNativeTestSession, runDesktopTestSession } from "../orchestrator/index.js";
 import type { TestStep, TestPhase } from "../orchestrator/index.js";
 import type { NativePlatform, TestFinding, TestPersona, TestReport } from "../providers/types.js";
+import type { DesktopPlatform } from "../desktop/types.js";
+
+const DESKTOP_PLATFORMS: string[] = ["electron"];
+function isDesktopPlatform(p: string): p is DesktopPlatform {
+  return DESKTOP_PLATFORMS.includes(p);
+}
 
 interface RunCommandProps {
   options: {
@@ -16,7 +22,7 @@ interface RunCommandProps {
     scope?: string;
     persona?: TestPersona;
     device?: string;
-    platform?: NativePlatform;
+    platform?: NativePlatform | DesktopPlatform;
     provider?: string;
     baselineOnly?: boolean;
   };
@@ -46,32 +52,43 @@ export function RunCommand({ options }: RunCommandProps) {
       onProviderOutput: (text: string) => setProviderOutput((prev) => prev + text),
     };
 
-    const session = options.platform
-      ? runNativeTestSession(
-        projectPath,
-        {
-          url: options.url,
-          scope: options.scope,
-          persona: options.persona,
-          nativePlatform: options.platform,
-        },
-        callbacks,
-      )
-      : runTestSession(
-        projectPath,
-        {
-          url: options.url,
-          commitId: options.commit,
-          prId: options.pr,
-          scope: options.scope,
-          persona: options.persona,
-        },
-        callbacks,
-      );
+    const session = options.platform && isDesktopPlatform(options.platform)
+      ? runDesktopTestSession(
+          projectPath,
+          {
+            url: options.url,
+            scope: options.scope,
+            persona: options.persona,
+            desktopPlatform: options.platform,
+          },
+          callbacks,
+        )
+      : options.platform
+        ? runNativeTestSession(
+            projectPath,
+            {
+              url: options.url,
+              scope: options.scope,
+              persona: options.persona,
+              nativePlatform: options.platform,
+            },
+            callbacks,
+          )
+        : runTestSession(
+            projectPath,
+            {
+              url: options.url,
+              commitId: options.commit,
+              prId: options.pr,
+              scope: options.scope,
+              persona: options.persona,
+            },
+            callbacks,
+          );
 
     session
-      .then((r) => setReport(r))
-      .catch((err) => setError(String(err)));
+      .then((r: TestReport) => setReport(r))
+      .catch((err: unknown) => setError(String(err)));
   }, []);
 
   const statusMap: Record<TestPhase, "idle" | "testing" | "analyzing" | "reporting" | "error"> = {
@@ -94,7 +111,7 @@ export function RunCommand({ options }: RunCommandProps) {
     : options.pr
       ? `Regression · PR #${options.pr}`
       : options.platform
-        ? `Native ${options.platform === "ios" ? "iOS" : "Android"} · ${options.url ?? "Launch app"}`
+        ? `${options.platform === "ios" ? "iOS" : options.platform === "android" ? "Android" : "Electron"} · ${options.url ?? "Launch app"}`
       : options.baselineOnly
         ? "Capturing Baselines"
         : options.persona && options.persona !== "standard"

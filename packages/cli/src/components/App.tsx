@@ -8,18 +8,22 @@ import { TestProgress } from "./TestProgress.js";
 import { initConfig, configExists, loadConfig, saveConfig, getReportDir, getMemoryPath } from "../config/settings.js";
 import { getRegressionContext } from "../git/context.js";
 import { getAvailableProviders } from "../providers/registry.js";
-import { getLocalAppUrlError, isLocalAppUrl, runTestSession, runNativeTestSession } from "../orchestrator/index.js";
+import { getLocalAppUrlError, isLocalAppUrl, runTestSession, runNativeTestSession, runDesktopTestSession } from "../orchestrator/index.js";
 import { ProviderStream } from "./ProviderStream.js";
 import { readFile, readdir, rm, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { GetwiredSettings } from "../config/settings.js";
 import type { DeviceProfile, TestFinding, TestPersona, TestReport, NativePlatform } from "../providers/types.js";
+import type { DesktopPlatform } from "../desktop/types.js";
 import type { TestStep, TestPhase } from "../orchestrator/index.js";
 import type { PrerequisiteCheck } from "../emulator/types.js";
+import type { DesktopPrerequisiteCheck } from "../desktop/types.js";
 import { clearAndroidSdkInfoCache } from "../emulator/android-sdk.js";
 import { checkAndroidPrerequisites, checkIosPrerequisites } from "../emulator/detect.js";
+import { checkElectronPrerequisites } from "../desktop/detect.js";
 import { installNativeTestDependencies } from "../emulator/ensure-dependencies.js";
+import { installDesktopDependencies } from "../desktop/ensure-dependencies.js";
 
 const INSTALL_SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
@@ -130,11 +134,20 @@ export function App({ mode, initProvider }: AppProps) {
   // Native emulator
   const [nativePlatform, setNativePlatform] = useState<NativePlatform>("android");
   const [nativePlatformIndex, setNativePlatformIndex] = useState(0);
-  const [nativeCheckResult, setNativeCheckResult] = useState<PrerequisiteCheck | null>(null);
+  const [nativeCheckResult, setNativeCheckResult] = useState<PrerequisiteCheck | DesktopPrerequisiteCheck | null>(null);
   const [nativeCheckLoading, setNativeCheckLoading] = useState(false);
   const [nativeInstallLoading, setNativeInstallLoading] = useState(false);
   const [nativeInstallError, setNativeInstallError] = useState<string | null>(null);
   const [nativeInstallTick, setNativeInstallTick] = useState(0);
+
+  function getPlatformLabel(platform: NativePlatform | DesktopPlatform): string {
+    switch (platform) {
+      case "android": return "🤖 Android";
+      case "ios": return "🍎 iOS";
+      case "electron": return "⚡ Electron";
+      default: return platform;
+    }
+  }
 
   const providers = getAvailableProviders();
   const selectedInitProvider = providers[providerIndex];
@@ -254,16 +267,21 @@ export function App({ mode, initProvider }: AppProps) {
     return savedUrl && isLocalAppUrl(savedUrl) ? savedUrl : "";
   }
 
-  function hasNativeAutoFixableIssues(result: PrerequisiteCheck | null): boolean {
+  function hasNativeAutoFixableIssues(result: PrerequisiteCheck | DesktopPrerequisiteCheck | null): boolean {
     return !!result?.issues.some((issue) => !issue.passed && issue.autoFixable);
   }
 
-  async function getPrerequisiteCheck(platform: NativePlatform): Promise<PrerequisiteCheck> {
+  async function getPrerequisiteCheck(platform: NativePlatform | DesktopPlatform): Promise<PrerequisiteCheck | DesktopPrerequisiteCheck> {
     if (platform === "android") {
       clearAndroidSdkInfoCache();
       return checkAndroidPrerequisites(process.cwd());
     }
-
+    if (platform === "ios") {
+      return checkIosPrerequisites(process.cwd());
+    }
+    if (platform === "electron") {
+      return checkElectronPrerequisites();
+    }
     return checkIosPrerequisites(process.cwd());
   }
 
@@ -294,7 +312,13 @@ export function App({ mode, initProvider }: AppProps) {
     setNativeInstallError(null);
 
     try {
-      const installResult = await installNativeTestDependencies(platform, process.cwd());
+      const DESKTOP_PLATS = ["electron"];
+      let installResult;
+      if (DESKTOP_PLATS.includes(platform)) {
+        installResult = await installDesktopDependencies(platform as any);
+      } else {
+        installResult = await installNativeTestDependencies(platform, process.cwd());
+      }
       if (!installResult.ok) {
         setNativeInstallError(installResult.error ?? "Auto-install failed.");
         return;
@@ -525,9 +549,9 @@ export function App({ mode, initProvider }: AppProps) {
       case "native-platform":
         if (key.escape || input === "b") { setView("dashboard"); return; }
         if (key.upArrow) setNativePlatformIndex((p) => Math.max(0, p - 1));
-        if (key.downArrow) setNativePlatformIndex((p) => Math.min(1, p + 1));
+        if (key.downArrow) setNativePlatformIndex((p) => Math.min(NATIVE_PLATFORMS.length - 1, p + 1));
         if (key.return) {
-          const platform: NativePlatform = nativePlatformIndex === 0 ? "android" : "ios";
+          const platform = NATIVE_PLATFORMS[nativePlatformIndex].id as NativePlatform;
           setNativePlatform(platform);
           setNativeCheckLoading(true);
           setView("native-check");
@@ -1043,7 +1067,7 @@ export function App({ mode, initProvider }: AppProps) {
             <Text color="greenBright" bold>◆ Choose a platform to test on:</Text>
             <Box flexDirection="column" marginY={1}>
               {NATIVE_PLATFORMS.map((p, i) => (
-                <Box key={p.id} gap={1}>
+                <Box key={p.id} gap={1} marginBottom={i < NATIVE_PLATFORMS.length - 1 ? 1 : 0}>
                   <Text color={i === nativePlatformIndex ? "greenBright" : "green"}>
                     {i === nativePlatformIndex ? " ▸ " : "   "}
                   </Text>
@@ -1066,7 +1090,7 @@ export function App({ mode, initProvider }: AppProps) {
       {/* ── Native: Prerequisite Check ── */}
       {view === "native-check" && (
         <>
-          <Header subtitle={`Native App Test · ${nativePlatform === "android" ? "🤖 Android" : "🍎 iOS"}`} />
+          <Header subtitle={`Native App Test · ${getPlatformLabel(nativePlatform)}`} />
           <Box flexDirection="column" paddingX={2} gap={1}>
             {nativeCheckLoading && (
               <Text color="greenBright">⏳ Checking prerequisites...</Text>
@@ -1128,7 +1152,7 @@ export function App({ mode, initProvider }: AppProps) {
 
       {view === "native-install-confirm" && nativeCheckResult && (
         <>
-          <Header subtitle={`Native App Test · ${nativePlatform === "android" ? "🤖 Android" : "🍎 iOS"}`} />
+          <Header subtitle={`Native App Test · ${getPlatformLabel(nativePlatform)}`} />
           <Box flexDirection="column" paddingX={2} gap={1}>
             <Text color="yellowBright" bold>◆ Native automation install required</Text>
             <Text color="green" dimColor>
@@ -1170,7 +1194,7 @@ export function App({ mode, initProvider }: AppProps) {
       {/* ── Native: Mode Select (reuses test-mode pattern) ── */}
       {view === "native-mode" && (
         <>
-          <Header subtitle={`Native App Test · ${nativePlatform === "android" ? "🤖 Android" : "🍎 iOS"}`} />
+          <Header subtitle={`Native App Test · ${getPlatformLabel(nativePlatform)}`} />
           <Box flexDirection="column" paddingX={2} gap={1}>
             <Text color="greenBright" bold>◆ Choose the kind of test run:</Text>
             <Box flexDirection="column" marginY={1}>
@@ -1198,7 +1222,7 @@ export function App({ mode, initProvider }: AppProps) {
       {/* ── Native: URL/Scope Input ── */}
       {view === "native-url" && (
         <>
-          <Header subtitle={`Native App Test · ${nativePlatform === "android" ? "🤖 Android" : "🍎 iOS"} · ${getTestPersonaLabel(selectedTestPersona)}`} />
+          <Header subtitle={`Native App Test · ${getPlatformLabel(nativePlatform)} · ${getTestPersonaLabel(selectedTestPersona)}`} />
           <Box flexDirection="column" paddingX={2} gap={1}>
             {getConfiguredLocalUrl() && (
               <Text color="green" dimColor>Target: {getConfiguredLocalUrl()}</Text>
@@ -1226,22 +1250,41 @@ export function App({ mode, initProvider }: AppProps) {
                 setTestUrl(url);
                 setActiveTestPersona(selectedTestPersona);
                 setView("native-running");
-                runNativeTestSession(
-                  process.cwd(),
-                  {
-                    url: url || undefined,
-                    scope: testScope,
-                    persona: selectedTestPersona,
-                    nativePlatform,
-                  },
-                  {
-                    onPhaseChange: (p, msg) => { setTestPhase(p); setTestPhaseMsg(msg); },
-                    onStepUpdate: (s) => setTestSteps([...s]),
-                    onFinding: (f) => setTestFindings((prev) => [...prev, f]),
-                    onLog: (msg) => setTestLogs((prev) => [...prev, msg].slice(-10)),
-                    onProviderOutput: appendProviderOutput,
-                  },
-                )
+                const DESKTOP_PLATS = ["electron"];
+                const sessionPromise = DESKTOP_PLATS.includes(nativePlatform)
+                  ? runDesktopTestSession(
+                      process.cwd(),
+                      {
+                        url: url || undefined,
+                        scope: testScope,
+                        persona: selectedTestPersona,
+                        desktopPlatform: nativePlatform as any,
+                      },
+                      {
+                        onPhaseChange: (p, msg) => { setTestPhase(p); setTestPhaseMsg(msg); },
+                        onStepUpdate: (s) => setTestSteps([...s]),
+                        onFinding: (f) => setTestFindings((prev) => [...prev, f]),
+                        onLog: (msg) => setTestLogs((prev) => [...prev, msg].slice(-10)),
+                        onProviderOutput: appendProviderOutput,
+                      },
+                    )
+                  : runNativeTestSession(
+                      process.cwd(),
+                      {
+                        url: url || undefined,
+                        scope: testScope,
+                        persona: selectedTestPersona,
+                        nativePlatform,
+                      },
+                      {
+                        onPhaseChange: (p, msg) => { setTestPhase(p); setTestPhaseMsg(msg); },
+                        onStepUpdate: (s) => setTestSteps([...s]),
+                        onFinding: (f) => setTestFindings((prev) => [...prev, f]),
+                        onLog: (msg) => setTestLogs((prev) => [...prev, msg].slice(-10)),
+                        onProviderOutput: appendProviderOutput,
+                      },
+                    );
+                sessionPromise
                   .then((r) => setTestReport(r))
                   .catch((err) => setTestError(String(err)));
               }}
@@ -1260,8 +1303,8 @@ export function App({ mode, initProvider }: AppProps) {
         <>
           <Header subtitle={
             testUrl
-              ? `Native App Test · ${nativePlatform === "android" ? "🤖 Android" : "🍎 iOS"} · ${getTestPersonaLabel(activeTestPersona)} · ${testUrl}`
-              : `Native App Test · ${nativePlatform === "android" ? "🤖 Android" : "🍎 iOS"} · ${getTestPersonaLabel(activeTestPersona)}`
+              ? `Native App Test · ${getPlatformLabel(nativePlatform)} · ${getTestPersonaLabel(activeTestPersona)} · ${testUrl}`
+              : `Native App Test · ${getPlatformLabel(nativePlatform)} · ${getTestPersonaLabel(activeTestPersona)}`
           } />
           <StatusBar status={statusMap[testPhase] ?? "testing"} message={testPhaseMsg} />
           <Box flexDirection="row" marginY={1} minHeight={20} width="100%">
@@ -1592,6 +1635,7 @@ const MENU_ITEMS = [
 const NATIVE_PLATFORMS = [
   { id: "android", label: "Android", icon: "🤖", description: "Test on Android Emulator (requires Android SDK)" },
   { id: "ios", label: "iOS", icon: "🍎", description: "Test on iOS Simulator (requires Xcode, macOS only)" },
+  { id: "electron", label: "Electron", icon: "⚡", description: "Test Electron desktop app (requires Appium)" },
 ];
 
 const SETTINGS_SECTIONS = [

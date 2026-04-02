@@ -157,9 +157,9 @@ export async function listInstalledAppiumDrivers(): Promise<string[]> {
 
 export async function hasRequiredAppiumDriver(platform: NativePlatform): Promise<boolean> {
   const drivers = await listInstalledAppiumDrivers();
-  return platform === "ios"
-    ? drivers.includes("xcuitest")
-    : drivers.includes("uiautomator2");
+  if (platform === "ios") return drivers.includes("xcuitest");
+  if (platform === "android") return drivers.includes("uiautomator2");
+  return false;
 }
 
 export async function installAppiumServer(): Promise<{ ok: boolean; error?: string }> {
@@ -175,7 +175,14 @@ export async function installAppiumDriver(platform: NativePlatform): Promise<{ o
     return { ok: false, error: "The `appium` command is not available yet." };
   }
   await mkdir(APPIUM_HOME, { recursive: true });
-  const driverName = platform === "ios" ? "xcuitest" : "uiautomator2";
+  let driverName: string;
+  if (platform === "ios") {
+    driverName = "xcuitest";
+  } else if (platform === "android") {
+    driverName = "uiautomator2";
+  } else {
+    return { ok: false, error: `Unsupported platform: ${platform}` };
+  }
   if (await hasRequiredAppiumDriver(platform)) {
     return { ok: true };
   }
@@ -825,7 +832,7 @@ function parseInstalledDriverNames(raw: string): string[] {
   }
 
   const names = new Set<string>();
-  for (const match of trimmed.matchAll(/\b(xcuitest|uiautomator2)\b/gi)) {
+  for (const match of trimmed.matchAll(/\b(xcuitest|uiautomator2|mac2|windows)\b/gi)) {
     names.add(match[1].toLowerCase());
   }
   for (const match of trimmed.matchAll(/^\s*[-•*]?\s*([a-z0-9-]+)\s*(?:@|$)/gim)) {
@@ -842,14 +849,14 @@ function collectDriverNames(value: unknown, names: Set<string>): void {
   }
   if (typeof value === "object") {
     for (const [key, item] of Object.entries(value)) {
-      if (/^(xcuitest|uiautomator2)$/i.test(key)) {
+      if (/^(xcuitest|uiautomator2|mac2|windows)$/i.test(key)) {
         names.add(key.toLowerCase());
       }
       collectDriverNames(item, names);
     }
     return;
   }
-  if (typeof value === "string" && /^(xcuitest|uiautomator2)$/i.test(value.trim())) {
+  if (typeof value === "string" && /^(xcuitest|uiautomator2|mac2|windows)$/i.test(value.trim())) {
     names.add(value.trim().toLowerCase());
   }
 }

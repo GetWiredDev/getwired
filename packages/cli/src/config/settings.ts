@@ -49,6 +49,12 @@ export interface GetwiredSettings {
       workingDirectory?: string;
       source?: string;
     };
+    electron?: {
+      appPath?: string;
+      launchCommand?: string;
+      workingDirectory?: string;
+      source?: string;
+    };
   };
   testing: {
     deviceProfile: DeviceProfile;
@@ -89,6 +95,7 @@ const DEFAULT_SETTINGS: GetwiredSettings = {
   native: {
     ios: {},
     android: {},
+    electron: {},
   },
   testing: {
     deviceProfile: "both",
@@ -194,6 +201,10 @@ export async function loadConfig(projectPath: string): Promise<GetwiredSettings>
       android: {
         ...DEFAULT_SETTINGS.native.android,
         ...(saved.native?.android ?? {}),
+      },
+      electron: {
+        ...DEFAULT_SETTINGS.native.electron,
+        ...(saved.native?.electron ?? {}),
       },
     },
     testing: {

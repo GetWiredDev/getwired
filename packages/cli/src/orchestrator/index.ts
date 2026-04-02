@@ -26,6 +26,26 @@ import {
   upsertNativeLaunchMemory,
 } from "../emulator/native-launch.js";
 import { buildActionPrompt, validateScenarioActions } from "../emulator/native-actions.js";
+import { 
+  resolveDesktopLaunchTarget, 
+  describeDesktopLaunchTarget, 
+  persistDesktopLaunchTarget, 
+  upsertDesktopLaunchMemory, 
+  parseDesktopLaunchMemory 
+} from "../desktop/desktop-launch.js";
+import { 
+  launchElectronApp, 
+  closeElectronApp, 
+  captureElectronScreenshot, 
+  getElectronUIStructure,
+  clickElectronElement,
+  fillElectronElement,
+  pressElectronKey,
+  scrollElectron,
+  type ElectronSession 
+} from "../desktop/electron-app.js";
+import { buildDesktopActionPrompt, validateDesktopScenarioActions } from "../desktop/desktop-actions.js";
+import type { DesktopPlatform, ResolvedDesktopLaunchTarget } from "../desktop/types.js";
 import { getAndroidToolEnv } from "../emulator/android-sdk.js";
 import type {
   NativeAutomationProfile,
@@ -41,6 +61,7 @@ import {
   describeHybridWebview,
   fillAppiumElement,
   getAppiumContexts,
+  getAppiumPageSource,
   navigateAppiumTo,
   pressAppiumKey,
   scrollAppiumBy,
@@ -686,6 +707,418 @@ export async function runTestSession(
   }
 }
 
+// ─── Desktop app test session ────────────────────────────
+export async function runDesktopTestSession(
+  projectPath: string,
+  options: {
+    url?: string;
+    scope?: string;
+    persona?: TestPersona;
+    desktopPlatform: DesktopPlatform;
+  },
+  callbacks: OrchestratorCallbacks,
+): Promise<TestReport> {
+  const startTime = Date.now();
+  const settings = await loadConfig(projectPath);
+  const provider = getProvider(settings.provider);
+  const persona = options.persona ?? "standard";
+  const personaProfile = getPersonaProfile(persona);
+  const findings: TestFinding[] = [];
+  const execution: TestExecutionSummary = {
+    browserSessions: 0,
+    navigations: 0,
+    screenshots: 0,
+    scenariosPlanned: 0,
+    scenariosExecuted: 0,
+    evidenceMet: false,
+  };
+
+  const runId = generateId();
+  const memory = await loadMemory(projectPath);
+  const memoryUrl = parseMemoryUrl(memory);
+  const { url: resolvedUrl, ignoredSources } = await resolveTestUrl(
+    projectPath,
+    options.url,
+    settings.project.url,
+    memoryUrl,
+  );
+
+  const context: TestContext = {
+    projectPath,
+    url: resolvedUrl,
+    scope: options.scope,
+    persona,
+    deviceProfile: "desktop",
+    baselineDir: getBaselineDir(projectPath),
+    reportDir: join(getReportDir(projectPath), runId),
+  };
+
+  await mkdir(context.reportDir, { recursive: true });
+
+  const desktopStepNames = [
+    "Scan project structure",
+    "Load project context",
+    "Resolve desktop launch target",
+    "Launch desktop app",
+    "Capture screenshots",
+    "Reconnaissance & test planning",
+    "Execute test scenarios",
+    "Generate report",
+  ];
+  const steps: TestStep[] = desktopStepNames.map((name) => ({ name, status: "pending" }));
+  callbacks.onStepUpdate(steps);
+
+  let debugLog = `GetWired Debug Log (Desktop ${options.desktopPlatform})\nRun: ${runId}\nTimestamp: ${new Date().toISOString()}\nProvider: ${settings.provider}\nPersona: ${persona}\nPlatform: ${options.desktopPlatform}\nURL: ${resolvedUrl ?? "(none)"}\n${"─".repeat(60)}\n\n`;
+  let desktopSession: ElectronSession | null = null;
+
+  const out = (text: string) => {
+    debugLog += text;
+    callbacks.onProviderOutput?.(text);
+  };
+
+  const saveDebugLog = async (error?: string) => {
+    if (error) debugLog += `\n\n${"─".repeat(60)}\nERROR: ${error}\n`;
+    debugLog += `\n${"─".repeat(60)}\nStep Summary\n${"─".repeat(60)}\n`;
+    for (const step of steps) {
+      const icon = step.status === "passed" ? "✔" : step.status === "failed" ? "✘" : "?";
+      debugLog += `  ${icon} [${step.status}] ${step.name}\n`;
+    }
+    debugLog += `\nCompleted: ${new Date().toISOString()}\nDuration: ${Date.now() - startTime}ms\n`;
+    await writeFile(join(context.reportDir, "debug.log"), debugLog).catch(() => {});
+  };
+
+  for (const ignoredSource of ignoredSources) {
+    const warning = `Ignoring ${ignoredSource} because GetWired only tests local apps on localhost or loopback addresses.`;
+    out(`> ${warning}\n`);
+  }
+
+  const recordFindings = (newFindings: TestFinding[]) => {
+    for (const finding of newFindings) {
+      findings.push(finding);
+      callbacks.onFinding(finding);
+    }
+  };
+
+  async function streamAnalyze(
+    ctx: TestContext,
+    messages: { role: "user" | "assistant" | "system"; content: string }[],
+  ): Promise<string> {
+    let full = "";
+    for await (const chunk of provider.stream(ctx, messages)) {
+      if (chunk.type === "text" && chunk.content) {
+        out(chunk.content);
+        full += chunk.content;
+      } else if (chunk.type === "tool_call" && chunk.toolCall) {
+        const activity = toolCallActivity(chunk.toolCall.name, persona);
+        out(`> ${activity}\n`);
+      }
+    }
+    out("\n");
+    return full;
+  }
+
+  try {
+    const platformLabel = "⚡ Electron";
+
+    // ── Step 1: Scan project ─────────────────────────
+    callbacks.onPhaseChange("scanning", "Scanning project structure...");
+    await updateStep(steps, 0, "running", callbacks);
+    const projectInfo = await scanProject(projectPath, context);
+    await updateStep(steps, 0, "passed", callbacks, Date.now() - startTime);
+
+    // ── Step 2: Load notes & memory ──────────────────
+    callbacks.onPhaseChange("scanning", "Loading project context...");
+    await updateStep(steps, 1, "running", callbacks);
+    const notes = await loadProjectNotes(projectPath);
+    if (memory) out(`> Loaded memory from previous test sessions\n`);
+    await updateStep(steps, 1, "passed", callbacks);
+
+    // ── Step 3: Resolve launch strategy ──────────────
+    callbacks.onPhaseChange("planning", `Inspecting project for ${platformLabel} launch...`);
+    await updateStep(steps, 2, "running", callbacks, undefined, `Inspecting project for ${platformLabel} launch`);
+    out(`> Resolving ${platformLabel} app target from memory, config, or project files...\n`);
+
+    const desktopLaunchTarget = await resolveDesktopLaunchTarget(options.desktopPlatform, projectPath, settings, memory);
+    out(`  Using ${describeDesktopLaunchTarget(desktopLaunchTarget)} [${desktopLaunchTarget.source}]\n`);
+
+    let resolvedSettings = persistDesktopLaunchTarget(settings, desktopLaunchTarget);
+    await saveConfig(projectPath, resolvedSettings).catch(() => {});
+
+    const resolvedMemory = upsertDesktopLaunchMemory(memory, desktopLaunchTarget);
+    await saveMemory(projectPath, resolvedMemory).catch(() => {});
+
+    await updateStep(steps, 2, "passed", callbacks, undefined, describeDesktopLaunchTarget(desktopLaunchTarget));
+
+    // ── Step 4: Launch app ──────────────────────────
+    callbacks.onPhaseChange("testing", `Launching ${platformLabel} app...`);
+    await updateStep(steps, 3, "running", callbacks, undefined, `Starting ${platformLabel}`);
+    out(`> Starting ${platformLabel}...\n`);
+
+    const screenshotDir = join(context.reportDir, "screenshots");
+    await mkdir(screenshotDir, { recursive: true });
+
+    try {
+      desktopSession = await launchElectronApp(desktopLaunchTarget as import("../desktop/types.js").ResolvedElectronLaunchTarget);
+      out(`  App launched successfully\n`);
+      await new Promise((r) => setTimeout(r, 2000));
+      await updateStep(steps, 3, "passed", callbacks);
+    } catch (error) {
+      out(`  ! Failed to launch app: ${String(error)}\n`);
+      await updateStep(steps, 3, "failed", callbacks, undefined, String(error));
+      throw error;
+    }
+
+    // ── Step 5: Capture screenshots ──────────────────
+    callbacks.onPhaseChange("capturing-current", `Capturing screenshots on ${platformLabel}...`);
+    await updateStep(steps, 4, "running", callbacks);
+    out(`> Taking screenshots on ${platformLabel}...\n`);
+
+    const screenshotPath = join(screenshotDir, `desktop-${options.desktopPlatform}-initial.png`);
+    try {
+      const screenshotBuffer = await captureElectronScreenshot(desktopSession!);
+      await writeFile(screenshotPath, screenshotBuffer);
+      execution.screenshots++;
+      out(`  📸 Saved: ${toProjectRelativePath(projectPath, screenshotPath)}\n`);
+      await updateStep(steps, 4, "passed", callbacks, undefined, "Screenshot captured");
+    } catch (err) {
+      out(`  ! Screenshot failed: ${String(err).slice(0, 100)}\n`);
+      await updateStep(steps, 4, "failed", callbacks, undefined, "Screenshot capture failed");
+    }
+
+    // ── Step 6: Reconnaissance — get UI structure ────
+    callbacks.onPhaseChange("planning", personaProfile.phaseMessages.planning);
+    await updateStep(steps, 5, "running", callbacks);
+    out(`> ${settings.provider}: ${personaProfile.outputMessages.planning}\n\n`);
+
+    let uiStructure = "";
+    try {
+      uiStructure = await getElectronUIStructure(desktopSession!);
+      out(`  Using desktop UI structure (Playwright accessibility tree)\n`);
+    } catch (error) {
+      out(`  ! Failed to get UI structure: ${String(error)}\n`);
+    }
+
+    if (!uiStructure || uiStructure.length < 100) {
+      const blockerMessage = `Desktop ${platformLabel} UI structure is not actionable: Empty or minimal UI dump`;
+      out(`  ! ${blockerMessage}\n`);
+      callbacks.onLog(blockerMessage);
+      findings.push({
+        id: `desktop-ui-${generateId()}`,
+        severity: "high",
+        category: "functional",
+        title: `${platformLabel} accessibility tree is not actionable`,
+        description: `Empty or minimal UI structure. GetWired stopped before generating interaction scenarios because taps and assertions would be unreliable.`,
+        device: "desktop",
+        steps: [
+          `Launch the app in ${platformLabel}`,
+          "Capture the initial screenshot",
+          "Read the accessibility tree / UI structure",
+        ],
+      });
+      await updateStep(steps, 5, "failed", callbacks, undefined, "UI structure not actionable");
+      await updateStep(steps, 6, "failed", callbacks, undefined, "Skipped because the UI dump was not actionable");
+    } else {
+      const testPlan = await streamAnalyze(context, [
+        { role: "system", content: buildSystemPrompt(persona, memory) },
+        {
+          role: "user",
+          content: buildDesktopReconPrompt(context, projectInfo, notes, uiStructure, desktopLaunchTarget),
+        },
+      ]);
+
+      callbacks.onLog(`Test plan generated with ${countPlanSteps(testPlan)} items`);
+      await updateStep(steps, 5, "passed", callbacks);
+
+      // ── Step 7: Execute test scenarios ────────────────
+      callbacks.onPhaseChange("testing", personaProfile.phaseMessages.scenarios);
+      await updateStep(steps, 6, "running", callbacks, undefined, `Using ${platformLabel}`);
+      out(`\n> ${settings.provider}: ${personaProfile.outputMessages.scenarios}\n\n`);
+
+      const scenarioPlanResult = await streamAnalyze(context, [
+        { role: "system", content: buildSystemPrompt(persona, memory) },
+        {
+          role: "user",
+          content: buildDesktopScenariosPrompt(context, testPlan, uiStructure, desktopLaunchTarget),
+        },
+      ]);
+
+      const rawScenarios = parseScenarios(scenarioPlanResult);
+      let plannedScenarios = validateDesktopScenarioActions(rawScenarios, options.desktopPlatform);
+      
+      if (rawScenarios.length > 0 && plannedScenarios.length < rawScenarios.length) {
+        const dropped = rawScenarios.length - plannedScenarios.length;
+        out(`  Filtered ${dropped} scenario${dropped === 1 ? "" : "s"} with invalid action types\n`);
+      }
+
+      execution.scenariosPlanned += plannedScenarios.length;
+
+      if (plannedScenarios.length === 0) {
+        out(`  ! Provider returned no executable desktop scenarios\n`);
+      }
+
+      if (plannedScenarios.length > 0) {
+        out(`  Executing ${plannedScenarios.length} desktop scenario${plannedScenarios.length === 1 ? "" : "s"}...\n`);
+        
+        for (const scenario of plannedScenarios) {
+          out(`\n  ▶ ${scenario.name}\n`);
+          execution.scenariosExecuted++;
+
+          for (const action of scenario.actions) {
+            try {
+              if (action.type === "tap" || action.type === "click") {
+                await clickElectronElement(desktopSession!, action.selector || "");
+                out(`    ✓ ${action.description || `Tap ${action.selector}`}\n`);
+              } else if (action.type === "fill" && action.value) {
+                await fillElectronElement(desktopSession!, action.selector || "", action.value);
+                out(`    ✓ ${action.description || `Fill ${action.selector}`}\n`);
+              } else if (action.type === "keyboard" && action.key) {
+                await pressElectronKey(desktopSession!, action.key);
+                out(`    ✓ ${action.description || `Press ${action.key}`}\n`);
+              } else if (action.type === "screenshot") {
+                const scenarioScreenshotPath = join(screenshotDir, `scenario-${execution.screenshots}.png`);
+      const screenshotBuffer = await captureElectronScreenshot(desktopSession!);
+                await writeFile(scenarioScreenshotPath, screenshotBuffer);
+                execution.screenshots++;
+                out(`    ✓ ${action.description || "Screenshot"} 📸\n`);
+              }
+              await new Promise((r) => setTimeout(r, 500));
+            } catch (error) {
+              out(`    ✗ ${action.description || action.type}: ${String(error).slice(0, 100)}\n`);
+            }
+          }
+        }
+      }
+
+      await updateStep(steps, 6, "passed", callbacks);
+    }
+
+    // ── Step 8: Generate report ──────────────────────
+    callbacks.onPhaseChange("reporting", "Generating test report...");
+    await updateStep(steps, 7, "running", callbacks);
+
+    const report: TestReport = {
+      id: runId,
+      timestamp: new Date().toISOString(),
+      provider: settings.provider,
+      context,
+      findings,
+      execution,
+      steps: steps.map(s => ({ name: s.name, status: s.status, duration: s.duration, details: s.details })),
+      summary: {
+        totalTests: execution.scenariosPlanned,
+        passed: execution.scenariosExecuted,
+        failed: findings.filter(f => f.severity === "high" || f.severity === "critical").length,
+        warnings: findings.filter(f => f.severity === "medium" || f.severity === "low").length,
+        duration: Date.now() - startTime,
+      },
+      notes: [],
+    };
+
+    await writeFile(join(context.reportDir, "report.json"), JSON.stringify(report, null, 2));
+    out(`> Report saved: ${toProjectRelativePath(projectPath, join(context.reportDir, "report.json"))}\n`);
+
+    await saveDebugLog();
+    await updateStep(steps, 7, "passed", callbacks);
+
+    callbacks.onPhaseChange("done", "Testing complete!");
+    return report;
+  } catch (err) {
+    await saveDebugLog(String(err));
+    out(`\n! Error: ${String(err)}\n`);
+    out(`> Debug log saved: ${runId}/debug.log\n`);
+    callbacks.onPhaseChange("error", `Error: ${err}`);
+    throw err;
+  } finally {
+    if (desktopSession) {
+      try {
+        await closeElectronApp(desktopSession);
+      } catch (error) {
+        out(`  ! Failed to close app: ${String(error)}\n`);
+      }
+    }
+  }
+}
+
+function buildDesktopReconPrompt(
+  context: TestContext,
+  projectInfo: string,
+  notes: string,
+  uiStructure: string,
+  launchTarget: ResolvedDesktopLaunchTarget,
+): string {
+  return `You are testing a desktop application.
+
+## Project Context
+${projectInfo}
+
+## Notes
+${notes || "No project notes available."}
+
+## Launch Target
+Platform: ${launchTarget.platform}
+Source: ${launchTarget.source}
+${launchTarget.launchCommand ? `Launch Command: ${launchTarget.launchCommand}` : ""}
+
+## Current UI Structure
+\`\`\`
+${uiStructure.slice(0, 8000)}
+\`\`\`
+
+## Task
+Analyze the desktop application UI and create a test plan covering:
+1. Core functionality verification
+2. Navigation flows
+3. Input validation
+4. Error handling
+5. Accessibility checks
+
+Provide a numbered list of test items to validate the application.`;
+}
+
+function buildDesktopScenariosPrompt(
+  context: TestContext,
+  testPlan: string,
+  uiStructure: string,
+  launchTarget: ResolvedDesktopLaunchTarget,
+): string {
+  const actionPrompt = buildDesktopActionPrompt(launchTarget.platform);
+  
+  return `You are testing a desktop application on ${launchTarget.platform}.
+
+## Test Plan
+${testPlan}
+
+## Current UI Structure
+\`\`\`
+${uiStructure.slice(0, 8000)}
+\`\`\`
+
+## Available Actions
+${actionPrompt}
+
+## Task
+Generate test scenarios as a JSON array. Each scenario should have:
+- name: string
+- category: "happy-path" | "edge-case" | "abuse" | "boundary" | "error-recovery"
+- actions: array of action objects with type, selector, value (if needed), and description
+
+Example:
+\`\`\`json
+[
+  {
+    "name": "Test login flow",
+    "category": "happy-path",
+    "actions": [
+      { "type": "fill", "selector": "#username", "value": "test@example.com", "description": "Enter username" },
+      { "type": "tap", "selector": "#login-button", "description": "Click login" }
+    ]
+  }
+]
+\`\`\`
+
+Return ONLY the JSON array, no other text.`;
+}
+
 // ─── Native emulator test session ────────────────────────────
 export async function runNativeTestSession(
   projectPath: string,
@@ -797,7 +1230,7 @@ export async function runNativeTestSession(
   }
 
   try {
-    const platformLabel = options.nativePlatform === "android" ? "🤖 Android Emulator" : "🍎 iOS Simulator";
+    const platformLabel = options.nativePlatform === "android" ? "Android" : "iOS";
 
     // ── Step 1: Scan project ─────────────────────────
     callbacks.onPhaseChange("scanning", "Scanning project structure...");
@@ -1052,7 +1485,7 @@ export async function runNativeTestSession(
 
     const nativeUiDiagnostics = automationMode === "hybrid"
       ? analyzeHybridUiStructure(uiStructure, nativeLaunchTarget.automation, hybridContextError, hybridContexts, hybridWebviewContext)
-      : analyzeNativeUiStructure(options.nativePlatform, uiStructure, nativeLaunchTarget);
+      : analyzeNativeUiStructure(options.nativePlatform as "android" | "ios", uiStructure, nativeLaunchTarget);
     if (automationMode === "hybrid" && nativeUiDiagnostics.actionable) {
       const cacheIdentity = buildHybridScenarioCacheKey(nativeLaunchTarget, uiStructure);
       hybridCacheKey = cacheIdentity.key;
@@ -1184,7 +1617,7 @@ export async function runNativeTestSession(
             {
               key: hybridCacheKey,
               createdAt: new Date().toISOString(),
-              platform: options.nativePlatform,
+              platform: options.nativePlatform as "android" | "ios",
               framework: nativeLaunchTarget.automation.framework,
               viewUrl: hybridCacheViewUrl,
               title: hybridCacheTitle,

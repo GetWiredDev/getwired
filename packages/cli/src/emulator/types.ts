@@ -1,4 +1,5 @@
 export type NativePlatform = "android" | "ios";
+export type DesktopNativePlatform = NativePlatform | "electron";
 
 export interface EmulatorDevice {
   id: string;
@@ -15,7 +16,7 @@ export interface PrerequisiteIssue {
 }
 
 export interface PrerequisiteCheck {
-  platform: NativePlatform;
+  platform: DesktopNativePlatform;
   available: boolean;
   canProceed?: boolean;
   issues: PrerequisiteIssue[];
