@@ -2,6 +2,7 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { DeviceProfile, ProviderAuth } from "../providers/types.js";
+import type { PayloadCategory } from "../security/payloads.js";
 
 const DEFAULT_SHOW_BROWSER = process.env.CI !== "true"
   && (process.platform !== "linux" || Boolean(process.env.DISPLAY || process.env.WAYLAND_DISPLAY));
@@ -80,6 +81,11 @@ export interface GetwiredSettings {
     includeScreenshots: boolean;
     autoOpen: boolean;
   };
+  security: {
+    enabledCategories: PayloadCategory[];
+    customPayloadsPath?: string;
+    injectPayloads: boolean;
+  };
 }
 
 const DEFAULT_AUTH: AuthConfig = {
@@ -120,6 +126,10 @@ const DEFAULT_SETTINGS: GetwiredSettings = {
     outputFormat: "json",
     includeScreenshots: true,
     autoOpen: false,
+  },
+  security: {
+    enabledCategories: ["xss", "sqli", "path-traversal", "template-injection", "header-injection"],
+    injectPayloads: true,
   },
 };
 
@@ -230,6 +240,10 @@ export async function loadConfig(projectPath: string): Promise<GetwiredSettings>
     reporting: {
       ...DEFAULT_SETTINGS.reporting,
       ...(saved.reporting ?? {}),
+    },
+    security: {
+      ...DEFAULT_SETTINGS.security,
+      ...(saved.security ?? {}),
     },
   };
 }
