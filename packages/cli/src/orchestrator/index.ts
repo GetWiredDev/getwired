@@ -1901,7 +1901,7 @@ const PERSONA_PROFILES: Record<TestPersona, PersonaProfile> = {
   },
 };
 
-function buildSecurityPayloadSection(persona: TestPersona, settings: GetwiredSettings): string {
+export function buildSecurityPayloadSection(persona: TestPersona, settings: GetwiredSettings): string {
   if (persona !== "hacky" || settings.security.injectPayloads === false) {
     return "";
   }
