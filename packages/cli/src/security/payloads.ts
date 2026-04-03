@@ -1,4 +1,4 @@
-export type PayloadCategory = "xss" | "sqli" | "idor" | "csrf" | "path-traversal" | "header-injection" | "template-injection";
+export type PayloadCategory = "xss" | "sqli" | "path-traversal" | "header-injection" | "template-injection";
 
 export interface SecurityPayload {
   vector: string;
@@ -11,8 +11,6 @@ export interface SecurityPayload {
 const CATEGORY_ORDER: PayloadCategory[] = [
   "xss",
   "sqli",
-  "idor",
-  "csrf",
   "path-traversal",
   "header-injection",
   "template-injection",
@@ -21,8 +19,6 @@ const CATEGORY_ORDER: PayloadCategory[] = [
 const CATEGORY_LABELS: Record<PayloadCategory, string> = {
   xss: "XSS",
   sqli: "SQLi",
-  idor: "IDOR",
-  csrf: "CSRF",
   "path-traversal": "Path Traversal",
   "header-injection": "Header Injection",
   "template-injection": "Template Injection",
@@ -44,10 +40,6 @@ export const BUILT_IN_PAYLOADS: SecurityPayload[] = [
   { vector: "admin'--", category: "sqli", label: "Comment-based auth bypass", owaspRef: "A03:2021 Injection", target: "input" },
   { vector: "' OR SLEEP(5)--", category: "sqli", label: "Blind time-based sleep", owaspRef: "A03:2021 Injection", target: "param" },
   { vector: "1;WAITFOR DELAY '0:0:5'--", category: "sqli", label: "SQL Server time delay", owaspRef: "A03:2021 Injection", target: "param" },
-  { vector: "../users/2", category: "idor", label: "Sequential object ID swap", owaspRef: "A01:2021 Broken Access Control", target: "url" },
-  { vector: "accountId=999999", category: "idor", label: "High-value object identifier", owaspRef: "A01:2021 Broken Access Control", target: "param" },
-  { vector: "csrf_token=stale-or-empty", category: "csrf", label: "Missing or stale CSRF token", owaspRef: "A01:2021 Broken Access Control", target: "param" },
-  { vector: "Origin: https://evil.example", category: "csrf", label: "Cross-site origin header", owaspRef: "A01:2021 Broken Access Control", target: "header" },
   { vector: "../../../etc/passwd", category: "path-traversal", label: "Basic traversal", owaspRef: "A01:2021 Broken Access Control", target: "param" },
   { vector: "..%2f..%2f..%2fetc%2fpasswd", category: "path-traversal", label: "URL-encoded slash traversal", owaspRef: "A01:2021 Broken Access Control", target: "url" },
   { vector: "..%252f..%252f..%252fetc%252fpasswd", category: "path-traversal", label: "Double-encoded traversal", owaspRef: "A01:2021 Broken Access Control", target: "url" },
