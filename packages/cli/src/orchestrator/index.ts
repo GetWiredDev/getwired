@@ -1818,7 +1818,7 @@ const PERSONA_PROMPT_APPENDIX: Record<TestPersona, string> = {
   standard: `Mode: Standard testing.
 Keep a balanced QA mindset. Cover obvious flows first, then escalate into meaningful abuse and edge cases.`,
   hacky: `Mode: Hacky testing.
-Behave like a curious, persistent tester with no privileged access. Stay inside what a browser user can do by navigating, clicking, typing, reloading, editing URLs, query params, hashes, form inputs, and normal browser actions. Focus on exposed admin paths, insecure object references, role leaks, missing guards, unprotected actions, confusing state transitions, and places where the app reveals too much or lets a normal visitor do too much.
+Behave like a curious, persistent tester with no privileged access. Stay inside what a browser user can do by navigating, clicking, typing, reloading, editing URLs, query params, hashes, form inputs, and normal browser actions. Focus on exposed admin paths, insecure object references, role leaks, missing guards, unprotected actions, confusing state transitions, and places where the app reveals too much or lets a normal visitor do too much. Use payloads from the Security Payload Reference to fill every discovered form and input field. Treat every input field as a potential injection point. Generate explicit "fill" actions with injection vectors, not just navigate-and-screenshot steps, and actively submit those payloads wherever the UI allows.
 Do not assume shell access, stolen credentials, direct database access, or hidden APIs that a browser user cannot reach.`,
   "old-man": `Mode: Old Man Test.
 Simulate an older, non-technical user who is trying sincerely to use the app but is hesitant, literal, and easily confused. Move slower, prefer the obvious button, misread labels, distrust jargon, and notice anything unclear or intimidating. Report what felt easy, what was confusing, what wording was hard to understand, and what would make this person give up or call someone for help.`,
@@ -1923,7 +1923,7 @@ export function buildSecurityPayloadSection(persona: TestPersona, settings: Getw
   }
 
   return `── Security Payload Reference ──
-Use these known injection vectors when testing input fields, URL parameters, and headers. Pick payloads that match the input type you're testing. Do not limit yourself to these — also try creative variations.
+You MUST use these injection vectors when testing. For every form, input field, URL parameter, and header you discover, select payloads from the matching category below and inject them using "fill" actions. Do not just navigate to pages — actively submit payloads. Do not limit yourself to these — also try creative variations.
 
 ${formatPayloadsForPrompt(payloads)}`;
 }
@@ -2166,7 +2166,9 @@ ${testPlan.slice(0, 4000)}`;
     : persona === "hacky"
     ? `You are testing as a skeptical but unprivileged browser user. Focus on:
 - Probing: try routes that shouldn't be public, manipulate URL params and IDs
-- Tampering: submit forms with malicious or malformed input
+- Injection: for every form, input field, URL parameter, and header you discover, generate "fill" actions that use payloads from the Security Payload Reference and actively submit them
+- Coverage mix: at least 40% of your scenarios must be abuse or injection scenarios aimed at finding security flaws
+- Targeted payloads: test XSS in forms, SQLi in search/login params, template injection in text fields, and path traversal in URL params
 - State abuse: refresh mid-action, resubmit, back/forward to find stale state
 - Information leaks: error messages, disabled controls, hidden elements that reveal too much`
     : `You are a thorough QA tester. Focus on:
@@ -2187,7 +2189,7 @@ ${securityPayloadSection ? `${securityPayloadSection}
 - Your analysis already identified what's on this site and what to skip. FOLLOW THAT. If you said "no forms exist," do not generate form-testing scenarios. If you said "simple landing page," generate 3-5 scenarios, not 15.
 - Every scenario must target a SPECIFIC element, page, or flow from the site map. Reference actual links, buttons, forms, and selectors you can see above.
 - Each scenario must test something genuinely different. If two scenarios would click the same button and fill the same form, merge them or drop one.
-- Order scenarios by how likely they are to find real bugs. Happy paths first (most likely to catch regressions), then targeted abuse of specific features.
+- Order scenarios by how likely they are to find real bugs. ${persona === "hacky" ? "Injection and abuse scenarios first (most likely to find security bugs), then happy paths to catch regressions." : "Happy paths first (most likely to catch regressions), then targeted abuse of specific features."}
 
 Return as a JSON array of interaction scenarios:
 [{ "name": "...", "category": "happy-path|edge-case|abuse|boundary|error-recovery", "actions": [{ "type": "navigate|click|fill|select|scroll|wait|screenshot|keyboard|assert", "selector": "CSS selector", "value": "...", "url": "...", "key": "...", "description": "What you're doing and why" }] }]
