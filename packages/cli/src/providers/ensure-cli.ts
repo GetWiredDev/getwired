@@ -117,7 +117,7 @@ function buildProviderClis(): Record<string, ProviderCli> {
   };
 }
 
-function tryExec(command: string): boolean {
+export function tryExec(command: string): boolean {
   try {
     execSync(command, {
       encoding: "utf-8",
@@ -128,6 +128,37 @@ function tryExec(command: string): boolean {
   } catch {
     return false;
   }
+}
+
+export function checkProviderCliInstalled(providerName: string): {
+  installed: boolean;
+  binary: string;
+  displayName: string;
+} {
+  const clis = buildProviderClis();
+  const cli = clis[providerName];
+
+  if (!cli) {
+    return {
+      installed: true,
+      binary: providerName,
+      displayName: providerName,
+    };
+  }
+
+  return {
+    installed: tryExec(`command -v ${cli.binary}`),
+    binary: cli.binary,
+    displayName: cli.displayName,
+  };
+}
+
+export function checkAgentBrowserInstalled(): { installed: boolean } {
+  const cli = buildToolClis()["agent-browser"];
+
+  return {
+    installed: tryExec(`command -v ${cli.binary}`),
+  };
 }
 
 function runInstall(command: string): boolean {
