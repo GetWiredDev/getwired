@@ -4,7 +4,7 @@ import { render } from "ink";
 import { App } from "./components/App.js";
 import { RunCommand } from "./components/RunCommand.js";
 import { ReportView } from "./components/ReportView.js";
-import { checkForUpdates, getLocalVersion } from "./update.js";
+import { getLocalVersion, notifyIfUpdateAvailable } from "./update.js";
 
 program
   .name("getwired")
@@ -60,5 +60,10 @@ program
     render(<App mode="dashboard" />);
   });
 
-checkForUpdates();
+const shouldSkipUpdateCheck = process.argv.slice(2).includes("mcp");
+
 program.parse();
+
+if (!shouldSkipUpdateCheck) {
+  void notifyIfUpdateAvailable();
+}
