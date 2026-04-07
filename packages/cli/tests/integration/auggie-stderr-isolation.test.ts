@@ -173,8 +173,20 @@ describe("AuggieProvider stderr isolation", () => {
 
     assert.match(output, /Analyzing page structure at localhost:3000\.\.\./);
     assert.ok(diagnostic, "expected non-zero exit diagnostics");
+    assert.ok(
+      diagnostic.startsWith("\n[auggie exited with code 23]\n"),
+      "expected diagnostic chunk to include stderr detail after the exit code header",
+    );
     assert.ok(diagnostic.includes(LARGE_STDERR_TAIL), "expected stderr tail to be preserved");
     assert.ok(!diagnostic.includes(LARGE_STDERR_HEAD), "expected stderr head to be truncated");
+    assert.ok(
+      diagnostic.endsWith(`${LARGE_STDERR_TAIL}\n`),
+      "expected diagnostic chunk to end with trimmed stderr detail plus the provider newline",
+    );
+    assert.ok(
+      !diagnostic.endsWith("\n\n"),
+      "expected stderr detail to be trimmed before the provider adds its final newline",
+    );
     assert.ok(
       diagnostic.length <= STDERR_CAP + 64,
       `expected diagnostic chunk to stay near the ${STDERR_CAP}-character cap`,
