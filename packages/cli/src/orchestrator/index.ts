@@ -71,6 +71,7 @@ import {
 } from "../emulator/appium.js";
 import type { AppiumContextInfo, AppiumSession } from "../emulator/appium.js";
 import type {
+  DeviceProfile,
   TestContext,
   TestExecutionSummary,
   TestReport,
@@ -263,12 +264,14 @@ export async function runTestSession(
     prId?: string;
     scope?: string;
     persona?: TestPersona;
+    provider?: string;
+    device?: DeviceProfile;
   },
   callbacks: OrchestratorCallbacks,
 ): Promise<TestReport> {
   const startTime = Date.now();
   const settings = await loadConfig(projectPath);
-  const provider = getProvider(settings.provider);
+  const provider = getProvider(options.provider ?? settings.provider);
 
   // Ensure agent-browser CLI is installed before any browser operations
   if (!ensureAgentBrowser()) {
@@ -298,6 +301,7 @@ export async function runTestSession(
     settings.project.url,
     memoryUrl,
   );
+  const deviceProfile = options.device ?? settings.testing.deviceProfile;
   const context: TestContext = {
     projectPath,
     url: resolvedUrl,
@@ -305,7 +309,7 @@ export async function runTestSession(
     prId: options.prId,
     scope: options.scope,
     persona,
-    deviceProfile: settings.testing.deviceProfile,
+    deviceProfile,
     baselineDir: getBaselineDir(projectPath),
     reportDir: join(getReportDir(projectPath), runId),
   };
@@ -520,7 +524,7 @@ export async function runTestSession(
     try {
       captures = await captureMultiplePages(pages, {
         outputDir: join(context.reportDir, "screenshots"),
-        deviceProfile: settings.testing.deviceProfile,
+        deviceProfile,
         viewports: settings.testing.viewports,
         fullPage: settings.testing.screenshotFullPage,
         delay: settings.testing.screenshotDelay,
@@ -730,13 +734,14 @@ export async function runDesktopTestSession(
     url?: string;
     scope?: string;
     persona?: TestPersona;
+    provider?: string;
     desktopPlatform: DesktopPlatform;
   },
   callbacks: OrchestratorCallbacks,
 ): Promise<TestReport> {
   const startTime = Date.now();
   const settings = await loadConfig(projectPath);
-  const provider = getProvider(settings.provider);
+  const provider = getProvider(options.provider ?? settings.provider);
   const persona = options.persona ?? "standard";
   const personaProfile = getPersonaProfile(persona);
   const findings: TestFinding[] = [];
@@ -1146,13 +1151,14 @@ export async function runNativeTestSession(
     url?: string;
     scope?: string;
     persona?: TestPersona;
+    provider?: string;
     nativePlatform: import("../providers/types.js").NativePlatform;
   },
   callbacks: OrchestratorCallbacks,
 ): Promise<TestReport> {
   const startTime = Date.now();
   const settings = await loadConfig(projectPath);
-  const provider = getProvider(settings.provider);
+  const provider = getProvider(options.provider ?? settings.provider);
   const persona = options.persona ?? "standard";
   const personaProfile = getPersonaProfile(persona);
   const findings: TestFinding[] = [];
