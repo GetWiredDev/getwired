@@ -6,7 +6,7 @@ import { TestProgress } from "./TestProgress.js";
 import { ProviderStream } from "./ProviderStream.js";
 import { runTestSession, runNativeTestSession, runDesktopTestSession } from "../orchestrator/index.js";
 import type { TestStep, TestPhase } from "../orchestrator/index.js";
-import type { NativePlatform, TestFinding, TestPersona, TestReport } from "../providers/types.js";
+import type { DeviceProfile, NativePlatform, TestFinding, TestPersona, TestReport } from "../providers/types.js";
 import type { DesktopPlatform } from "../desktop/types.js";
 
 const DESKTOP_PLATFORMS: string[] = ["electron"];
@@ -41,6 +41,7 @@ export function RunCommand({ options }: RunCommandProps) {
 
   useEffect(() => {
     const projectPath = process.cwd();
+    const device = options.device as DeviceProfile | undefined;
     const callbacks = {
       onPhaseChange: (p: TestPhase, msg: string) => {
         setPhase(p);
@@ -52,39 +53,43 @@ export function RunCommand({ options }: RunCommandProps) {
       onProviderOutput: (text: string) => setProviderOutput((prev) => prev + text),
     };
 
-    const session = options.platform && isDesktopPlatform(options.platform)
-      ? runDesktopTestSession(
-          projectPath,
-          {
-            url: options.url,
-            scope: options.scope,
-            persona: options.persona,
-            desktopPlatform: options.platform,
-          },
-          callbacks,
-        )
-      : options.platform
-        ? runNativeTestSession(
-            projectPath,
-            {
-              url: options.url,
-              scope: options.scope,
-              persona: options.persona,
-              nativePlatform: options.platform,
-            },
-            callbacks,
-          )
-        : runTestSession(
-            projectPath,
-            {
-              url: options.url,
-              commitId: options.commit,
-              prId: options.pr,
-              scope: options.scope,
-              persona: options.persona,
-            },
-            callbacks,
-          );
+    let session: Promise<TestReport>;
+
+    if (options.platform && isDesktopPlatform(options.platform)) {
+      const runOptions = {
+        url: options.url,
+        scope: options.scope,
+        persona: options.persona,
+        desktopPlatform: options.platform,
+        provider: options.provider,
+        device,
+      };
+      session = runDesktopTestSession(projectPath, runOptions, callbacks);
+    } else if (options.platform) {
+      const runOptions = {
+        url: options.url,
+        scope: options.scope,
+        persona: options.persona,
+        nativePlatform: options.platform,
+        provider: options.provider,
+        device,
+      };
+      session = runNativeTestSession(projectPath, runOptions, callbacks);
+    } else {
+      session = runTestSession(
+        projectPath,
+        {
+          url: options.url,
+          commitId: options.commit,
+          prId: options.pr,
+          scope: options.scope,
+          persona: options.persona,
+          provider: options.provider,
+          device,
+        },
+        callbacks,
+      );
+    }
 
     session
       .then((r: TestReport) => setReport(r))
