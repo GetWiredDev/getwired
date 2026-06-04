@@ -9,7 +9,7 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "next": "^16.2.6",
+    "next": "^16.2.7",
     "posthog-js": "^1.364.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
@@ -19,7 +19,7 @@
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "postcss": "^8.5.10",
+    "postcss": "^8.5.11",
     "tailwindcss": "^4.0.0",
     "typescript": "^5.7.0"
   }
